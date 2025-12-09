@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multimodal_rag"
+version = "0.0.1"
+description = "A multimodal RAG project"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pymupdf",
+    "google-generativeai",
+    "chromadb",
+    "python-dotenv",
+    "pytest",
+    "pytest-cov",
+    # pydantic is a dependency of google-genai, but it's good to be explicit
+    "pydantic", 
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

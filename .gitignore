@@ -24,3 +24,6 @@ assets/images/*
 
 # Coverage report
 .coverage
+
+# Build artifacts
+*.egg-info/

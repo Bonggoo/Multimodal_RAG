@@ -20,17 +20,17 @@
     - 각 페이지를 이미지(PNG/WebP)로 렌더링하여 `./assets/images` 에 저장하는 기능
     - 파일명 규칙 정의 (예: `doc_name_p001.png`)
 - [x] **단위 테스트 작성:** `pytest`를 사용하여 전처리 모듈의 각 함수 테스트
-- [-] **Commit:** `git commit -m "feat: 전처리 모듈 구현"`
+- [x] **Commit:** `git commit -m "feat: 전처리 모듈 구현"`
 
 ## 3. 파싱 및 구조화 모듈 구현 (Parsing Layer)
-- [ ] **Gemini 클라이언트 설정:** `google-genai` 라이브러리로 Gemini 2.5 Flash 모델 연결
-- [ ] **멀티모달 파싱 함수 구현:**
+- [x] **Gemini 클라이언트 설정:** `google-genai` 라이브러리로 Gemini 2.5 Flash 모델 연결
+- [x] **멀티모달 파싱 함수 구현:**
     - 입력: 단일 페이지 PDF (Bytes)
     - 프롬프트: "텍스트, 표(Markdown), 이미지 묘사 추출 및 챕터 정보(`chapter_path`) 태깅"
     - 출력: 정형화된 JSON 객체 반환
-- [ ] **구조화 데이터 정제:** 파싱된 JSON 결과에서 오류 처리 및 데이터 검증 로직 추가
-- [ ] **단위 테스트 작성:** `pytest`를 사용하여 파싱 및 구조화 모듈 테스트
-- [ ] **Commit:** `git commit -m "feat: 파싱 및 구조화 모듈 구현"`
+- [x] **구조화 데이터 정제:** 파싱된 JSON 결과에서 오류 처리 및 데이터 검증 로직 추가
+- [x] **단위 테스트 작성:** `pytest`를 사용하여 파싱 및 구조화 모듈 테스트
+- [-] **Commit:** `git commit -m "feat: 파싱 및 구조화 모듈 구현"`
 
 ## 4. 저장소 모듈 구현 (Storage Layer)
 - [ ] **ChromaDB 초기화:** Persistent Client 설정 및 Collection 생성 (`manual_rag`)

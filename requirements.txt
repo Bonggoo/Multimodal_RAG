@@ -1,5 +1,5 @@
 pymupdf
-google-genai
+google-generativeai
 chromadb
 python-dotenv
 pytest
