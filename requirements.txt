@@ -1,0 +1,6 @@
+pymupdf
+google-genai
+chromadb
+python-dotenv
+pytest
+pytest-cov

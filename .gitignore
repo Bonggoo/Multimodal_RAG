@@ -1,6 +1,26 @@
+# Environments
 venv/
+
+# Python cache
 __pycache__/
+*.pyc
+
+# Config
 .env
+
+# OS-specific
 .DS_Store
+
+# Local data
 chroma_db/
-assets/
+
+# Test cache
+.pytest_cache
+
+# Generated assets
+# Ignore contents of images dir, but not the dir itself
+assets/images/*
+!assets/images/.gitkeep
+
+# Coverage report
+.coverage

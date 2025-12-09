@@ -13,13 +13,14 @@
 - [x] **Git 저장소 초기화:** `git init` 및 초기 커밋
 
 ## 2. 전처리 모듈 구현 (Preprocessing Layer)
-- [ ] **PDF 로더 구현:** PyMuPDF(`fitz`)를 이용하여 PDF 파일 로드 기능 구현
-- [ ] **페이지 분할기(Splitter) 구현:**
+- [x] **PDF 로더 구현:** PyMuPDF(`fitz`)를 이용하여 PDF 파일 로드 기능 구현
+- [x] **페이지 분할기(Splitter) 구현:**
     - PDF를 1페이지 단위의 개별 PDF 파일(bytes)로 분리하는 함수 작성
-- [ ] **썸네일 생성기 구현:**
+- [x] **썸네일 생성기 구현:**
     - 각 페이지를 이미지(PNG/WebP)로 렌더링하여 `./assets/images` 에 저장하는 기능
     - 파일명 규칙 정의 (예: `doc_name_p001.png`)
-- [ ] **Commit:** `git commit -m "feat: 전처리 모듈 구현"`
+- [x] **단위 테스트 작성:** `pytest`를 사용하여 전처리 모듈의 각 함수 테스트
+- [-] **Commit:** `git commit -m "feat: 전처리 모듈 구현"`
 
 ## 3. 파싱 및 구조화 모듈 구현 (Parsing Layer)
 - [ ] **Gemini 클라이언트 설정:** `google-genai` 라이브러리로 Gemini 2.5 Flash 모델 연결
@@ -28,6 +29,7 @@
     - 프롬프트: "텍스트, 표(Markdown), 이미지 묘사 추출 및 챕터 정보(`chapter_path`) 태깅"
     - 출력: 정형화된 JSON 객체 반환
 - [ ] **구조화 데이터 정제:** 파싱된 JSON 결과에서 오류 처리 및 데이터 검증 로직 추가
+- [ ] **단위 테스트 작성:** `pytest`를 사용하여 파싱 및 구조화 모듈 테스트
 - [ ] **Commit:** `git commit -m "feat: 파싱 및 구조화 모듈 구현"`
 
 ## 4. 저장소 모듈 구현 (Storage Layer)
@@ -37,6 +39,7 @@
     - 파싱된 텍스트/표/이미지 설명을 각각 별도의 Document로 변환
     - Metadata에 `page`, `chapter_path`, `image_path`(썸네일 경로) 매핑
     - DB에 `add()` 하는 로직 구현
+- [ ] **단위 테스트 작성:** `pytest`를 사용하여 저장소 모듈 테스트
 - [ ] **Commit:** `git commit -m "feat: 저장소 모듈 구현"`
 
 ## 5. 검색 및 답변 모듈 구현 (Retrieval & Generation Layer)
@@ -46,6 +49,7 @@
 - [ ] **답변 생성기(Generator) 구현:**
     - 검색된 Context(텍스트+표)와 질문을 합쳐 LLM 프롬프트 구성
     - 검색된 결과에 '이미지' 타입이 있다면, 해당 `image_path`를 답변 끝에 첨부하도록 로직 작성
+- [ ] **단위 테스트 작성:** `pytest`를 사용하여 검색 및 답변 모듈 테스트
 - [ ] **Commit:** `git commit -m "feat: 검색 및 답변 모듈 구현"`
 
 ## 6. 메인 로직 및 CLI 인터페이스 (Application)
@@ -54,6 +58,7 @@
     - 모드 선택: `1. 문서 업로드(적재)`, `2. 질문하기`
     - 사용자 입력 처리 및 결과 출력 (Markdown 포맷 지원)
 - [ ] **테스트 및 디버깅:** 샘플 PDF(매뉴얼 등)를 이용한 전체 흐름 테스트
+- [ ] **단위 테스트 작성:** `pytest`를 사용하여 전체 파이프라인 통합 테스트
 - [ ] **Commit:** `git commit -m "feat: 메인 로직 및 CLI 구현"`
 
 ## 7. 문서화 및 마무리
