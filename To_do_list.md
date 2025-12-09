@@ -30,17 +30,17 @@
     - 출력: 정형화된 JSON 객체 반환
 - [x] **구조화 데이터 정제:** 파싱된 JSON 결과에서 오류 처리 및 데이터 검증 로직 추가
 - [x] **단위 테스트 작성:** `pytest`를 사용하여 파싱 및 구조화 모듈 테스트
-- [-] **Commit:** `git commit -m "feat: 파싱 및 구조화 모듈 구현"`
+- [x] **Commit:** `git commit -m "feat: 파싱 및 구조화 모듈 구현"`
 
 ## 4. 저장소 모듈 구현 (Storage Layer)
-- [ ] **ChromaDB 초기화:** Persistent Client 설정 및 Collection 생성 (`manual_rag`)
-- [ ] **임베딩 함수 구현:** Google GenAI Embeddings API 연동
-- [ ] **데이터 적재(Indexing) 함수:**
+- [x] **ChromaDB 초기화:** Persistent Client 설정 및 Collection 생성 (`manual_rag`)
+- [x] **임베딩 함수 구현:** Google GenAI Embeddings API 연동
+- [x] **데이터 적재(Indexing) 함수:**
     - 파싱된 텍스트/표/이미지 설명을 각각 별도의 Document로 변환
     - Metadata에 `page`, `chapter_path`, `image_path`(썸네일 경로) 매핑
     - DB에 `add()` 하는 로직 구현
-- [ ] **단위 테스트 작성:** `pytest`를 사용하여 저장소 모듈 테스트
-- [ ] **Commit:** `git commit -m "feat: 저장소 모듈 구현"`
+- [x] **단위 테스트 작성:** `pytest`를 사용하여 저장소 모듈 테스트
+- [-] **Commit:** `git commit -m "feat: 저장소 모듈 구현"`
 
 ## 5. 검색 및 답변 모듈 구현 (Retrieval & Generation Layer)
 - [ ] **검색기(Retriever) 구현:**
