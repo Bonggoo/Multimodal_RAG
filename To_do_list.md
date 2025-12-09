@@ -40,17 +40,17 @@
     - Metadata에 `page`, `chapter_path`, `image_path`(썸네일 경로) 매핑
     - DB에 `add()` 하는 로직 구현
 - [x] **단위 테스트 작성:** `pytest`를 사용하여 저장소 모듈 테스트
-- [-] **Commit:** `git commit -m "feat: 저장소 모듈 구현"`
+- [x] **Commit:** `git commit -m "feat: 저장소 모듈 구현"`
 
 ## 5. 검색 및 답변 모듈 구현 (Retrieval & Generation Layer)
-- [ ] **검색기(Retriever) 구현:**
+- [x] **검색기(Retriever) 구현:**
     - 사용자 질문을 임베딩하여 ChromaDB에서 유사 청크(Top-K) 검색
     - (옵션) `where` 필터를 이용한 메타데이터 검색 기능 준비
-- [ ] **답변 생성기(Generator) 구현:**
+- [x] **답변 생성기(Generator) 구현:**
     - 검색된 Context(텍스트+표)와 질문을 합쳐 LLM 프롬프트 구성
     - 검색된 결과에 '이미지' 타입이 있다면, 해당 `image_path`를 답변 끝에 첨부하도록 로직 작성
-- [ ] **단위 테스트 작성:** `pytest`를 사용하여 검색 및 답변 모듈 테스트
-- [ ] **Commit:** `git commit -m "feat: 검색 및 답변 모듈 구현"`
+- [x] **단위 테스트 작성:** `pytest`를 사용하여 검색 및 답변 모듈 테스트
+- [-] **Commit:** `git commit -m "feat: 검색 및 답변 모듈 구현"`
 
 ## 6. 메인 로직 및 CLI 인터페이스 (Application)
 - [ ] **파이프라인 통합:** `Ingestion`(PDF->DB)과 `QA`(질문->답변) 프로세스를 연결하는 메인 스크립트(`main.py`) 작성
