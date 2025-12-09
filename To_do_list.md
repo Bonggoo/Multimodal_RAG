@@ -10,7 +10,7 @@
     - `chromadb` (Vector DB)
     - `python-dotenv` (환경변수 관리)
 - [x] **API 키 설정:** `.env` 파일 생성 및 `GOOGLE_API_KEY` 등록
-- [ ] **Git 저장소 초기화:** `git init` 및 초기 커밋
+- [x] **Git 저장소 초기화:** `git init` 및 초기 커밋
 
 ## 2. 전처리 모듈 구현 (Preprocessing Layer)
 - [ ] **PDF 로더 구현:** PyMuPDF(`fitz`)를 이용하여 PDF 파일 로드 기능 구현
