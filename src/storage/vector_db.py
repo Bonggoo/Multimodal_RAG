@@ -1,22 +1,31 @@
 import os
-import chromadb
-from chromadb.utils import embedding_functions
 from dotenv import load_dotenv
 from typing import List
-from src.parsing.parser import PageContent
+
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+
+from src.parsing.schema import PageContent # Corrected import path
 
 # 상수 정의
 CHROMA_DB_PATH = "chroma_db"
 COLLECTION_NAME = "manual_rag"
 
-def get_google_embedding_function() -> embedding_functions.GoogleGenerativeAiEmbeddingFunction:
+def get_vector_store(
+    collection_name: str = COLLECTION_NAME,
+    db_path: str = CHROMA_DB_PATH
+) -> Chroma:
     """
-    Google GenAI 임베딩 함수를 생성하고 반환합니다.
-    
-    .env 파일에서 GOOGLE_API_KEY를 로드하여 사용합니다.
+    LangChain Chroma 벡터 스토어를 초기화하고 반환합니다.
+    Google Generative AI 임베딩 함수를 사용합니다.
+
+    Args:
+        collection_name (str): 가져올 컬렉션의 이름.
+        db_path (str): 데이터베이스 파일 경로.
 
     Returns:
-        embedding_functions.GoogleGenerativeAiEmbeddingFunction: 설정된 임베딩 함수 객체.
+        Chroma: 초기화된 LangChain Chroma 벡터 스토어 객체.
 
     Raises:
         ValueError: GOOGLE_API_KEY가 없는 경우.
@@ -25,47 +34,27 @@ def get_google_embedding_function() -> embedding_functions.GoogleGenerativeAiEmb
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError("GOOGLE_API_KEY가 환경 변수에 설정되지 않았습니다. .env 파일을 확인하세요.")
-    
-    return embedding_functions.GoogleGenerativeAiEmbeddingFunction(api_key=api_key)
 
+    # Google Generative AI 임베딩 함수 초기화
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=api_key)
 
-def get_chroma_collection(
-    collection_name: str = COLLECTION_NAME,
-    db_path: str = CHROMA_DB_PATH
-) -> chromadb.Collection:
-    """
-    Persistent ChromaDB 클라이언트를 초기화하고 특정 컬렉션을 가져오거나 생성합니다.
-
-    Args:
-        collection_name (str): 가져올 컬렉션의 이름.
-        db_path (str): 데이터베이스 파일 경로.
-
-    Returns:
-        chromadb.Collection: ChromaDB 컬렉션 객체.
-    """
-    # 1. Persistent 클라이언트 생성
-    persistent_client = chromadb.PersistentClient(path=db_path)
-    
-    # 2. Google GenAI 임베딩 함수 가져오기
-    google_ef = get_google_embedding_function()
-    
-    # 3. 컬렉션 가져오기 또는 생성하기
-    # 임베딩 함수는 컬렉션 생성 시에만 필요합니다.
-    collection = persistent_client.get_or_create_collection(
-        name=collection_name,
-        embedding_function=google_ef
+    # Chroma 벡터 스토어 초기화 (없으면 생성)
+    vector_store = Chroma(
+        collection_name=collection_name,
+        embedding_function=embeddings,
+        persist_directory=db_path
     )
-    
-    return collection
+    return vector_store
 
-def add_page_content_to_db(
+
+def add_page_content_to_vector_db(
     page_content: PageContent,
     page_number: int,
     image_path: str,
-    collection: chromadb.Collection
+    vector_db: Chroma
 ):
     """
-    파싱된 페이지 콘텐츠를 ChromaDB에 적재합니다.
+    파싱된 페이지 콘텐츠를 LangChain Document 객체로 변환하여 Chroma 벡터 스토어에 적재합니다.
 
     텍스트, 테이블, 이미지 설명을 각각 별도의 Document로 저장합니다.
 
@@ -73,53 +62,47 @@ def add_page_content_to_db(
         page_content (PageContent): 파싱된 페이지 콘텐츠 Pydantic 모델.
         page_number (int): 현재 페이지 번호.
         image_path (str): 해당 페이지의 썸네일 이미지 경로.
-        collection (chromadb.Collection): 데이터를 적재할 ChromaDB 컬렉션.
+        vector_db (Chroma): 데이터를 적재할 LangChain Chroma 벡터 스토어.
     """
-    documents: List[str] = []
-    metadatas: List[dict] = []
-    ids: List[str] = []
+    documents_to_add: List[Document] = []
     
+    base_metadata = {
+        "page_number": page_number,
+        "chapter_path": page_content.chapter_path,
+        "image_path": image_path,
+    }
+
     # 1. 텍스트 콘텐츠 추가
     if page_content.text:
-        documents.append(page_content.text)
-        metadatas.append({
-            "page_number": page_number,
-            "content_type": "text",
-            "chapter_path": page_content.chapter_path,
-            "image_path": image_path,
-        })
-        ids.append(f"p{page_number}_text_0")
+        text_metadata = {**base_metadata, "content_type": "text"}
+        documents_to_add.append(
+            Document(page_content=page_content.text, metadata=text_metadata)
+        )
 
     # 2. 테이블 콘텐츠 추가
     for i, table in enumerate(page_content.tables):
-        documents.append(table)
-        metadatas.append({
-            "page_number": page_number,
-            "content_type": "table",
-            "chapter_path": page_content.chapter_path,
-            "image_path": image_path,
-        })
-        ids.append(f"p{page_number}_table_{i}")
+        table_metadata = {**base_metadata, "content_type": "table", "table_index": i}
+        documents_to_add.append(
+            Document(page_content=table, metadata=table_metadata)
+        )
 
     # 3. 이미지 설명 콘텐츠 추가
     for i, image in enumerate(page_content.images):
-        documents.append(image.description)
-        metadatas.append({
-            "page_number": page_number,
+        image_metadata = {
+            **base_metadata,
             "content_type": "image_description",
-            "chapter_path": page_content.chapter_path,
-            "image_path": image_path,
+            "image_index": i,
             "image_caption": image.caption
-        })
-        ids.append(f"p{page_number}_image_{i}")
-
-    # 4. DB에 데이터 적재
-    if documents:
-        collection.add(
-            documents=documents,
-            metadatas=metadatas,
-            ids=ids
+        }
+        documents_to_add.append(
+            Document(page_content=image.description, metadata=image_metadata)
         )
+
+    # 4. 벡터 스토어에 데이터 적재
+    if documents_to_add:
+        vector_db.add_documents(documents_to_add)
+
+
 
 if __name__ == '__main__':
     try:

@@ -1,107 +1,127 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
+import os
+
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.messages import AIMessage # Added import
+from langchain_chroma import Chroma
 
 # 테스트 대상 모듈 임포트
-from src.retrieval.retriever import search_documents
-from src.retrieval.generator import generate_answer
+from src.retrieval.retriever import get_retriever
+from src.retrieval.generator import generate_answer_with_rag, format_docs, get_image_paths
 
-# --- search_documents 테스트 ---
+# --- get_retriever 테스트 ---
 
-@patch('src.retrieval.retriever.get_chroma_collection')
-def test_search_documents(mock_get_collection):
-    """문서 검색 기능 테스트"""
-    mock_collection = MagicMock()
-    mock_get_collection.return_value = mock_collection
-    
-    query = "test query"
-    n_results = 3
-    where_filter = {"source": "test"}
+@patch('src.retrieval.retriever.get_vector_store')
+def test_get_retriever_success(mock_get_vector_store):
+    """Retriever 생성 성공 테스트"""
+    mock_vector_store = MagicMock(spec=Chroma)
+    mock_retriever = MagicMock(spec=BaseRetriever)
+    mock_vector_store.as_retriever.return_value = mock_retriever
+    mock_get_vector_store.return_value = mock_vector_store
     
     # 함수 실행
-    search_documents(query, n_results, where_filter)
+    retriever = get_retriever(search_kwargs={"k": 3})
     
     # Assertions
-    mock_get_collection.assert_called_once()
-    mock_collection.query.assert_called_once_with(
-        query_texts=[query],
-        n_results=n_results,
-        where=where_filter
-    )
-
-@patch('src.retrieval.retriever.get_chroma_collection')
-def test_search_documents_no_collection_passed(mock_get_collection):
-    """컬렉션이 인자로 전달되지 않았을 때의 동작 테스트"""
-    mock_collection = MagicMock()
-    mock_get_collection.return_value = mock_collection
-
-    search_documents(query="test")
-    
-    mock_get_collection.assert_called_once()
-    mock_collection.query.assert_called_once()
-
-def test_search_documents_with_collection_passed():
-    """컬렉션이 인자로 전달되었을 때의 동작 테스트"""
-    mock_collection = MagicMock()
-    
-    with patch('src.retrieval.retriever.get_chroma_collection') as mock_get_collection:
-        search_documents(query="test", collection=mock_collection)
-        
-        # get_chroma_collection이 호출되지 않아야 함
-        mock_get_collection.assert_not_called()
-        mock_collection.query.assert_called_once()
+    mock_get_vector_store.assert_called_once()
+    mock_vector_store.as_retriever.assert_called_once_with(search_kwargs={"k": 3})
+    assert retriever == mock_retriever
 
 
-# --- generate_answer 테스트 ---
+# --- generate_answer_with_rag 테스트 ---
 
-@patch('src.retrieval.generator.get_gemini_client')
-def test_generate_answer_success(mock_get_client):
-    """답변 생성 성공 테스트 (이미지 경로 포함)"""
-    mock_model = MagicMock()
-    mock_response = MagicMock()
-    mock_response.text = "This is the generated answer."
-    mock_model.generate_content.return_value = mock_response
-    mock_get_client.return_value = mock_model
+@pytest.fixture
+def mock_retriever_with_docs():
+    """Document를 반환하는 모의 Retriever Fixture"""
+    mock_retriever = MagicMock(spec=BaseRetriever)
+    mock_retriever.invoke.return_value = [
+        Document(page_content="doc1 text", metadata={'page_number': 1, 'image_path': '/img/p1.png'}),
+        Document(page_content="doc2 text", metadata={'page_number': 2, 'image_path': '/img/p2.png'}),
+        Document(page_content="doc3 text", metadata={'page_number': 3})
+    ]
+    return mock_retriever
 
-    query = "What is this?"
-    search_results = {
-        'documents': [['doc1 text', 'image desc 1', 'doc2 text']],
-        'metadatas': [[
-            {'source': 'p1', 'image_path': '/img/p1.png'},
-            {'source': 'p1', 'image_path': '/img/p1.png'},
-            {'source': 'p2', 'image_path': '/img/p2.png'}
-        ]]
-    }
+@patch('src.retrieval.generator.get_rag_chain') # Patch the function that returns the chain
+@patch('src.retrieval.generator.load_dotenv', MagicMock())
+@patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_api_key'})
+def test_generate_answer_with_rag_success(mock_get_rag_chain, mock_retriever_with_docs):
+    """RAG 체인을 사용한 답변 생성 성공 테스트"""
+    mock_rag_chain = MagicMock()
+    mock_rag_chain.invoke.return_value = "Generated answer." # Mock the chain's final output
+    mock_get_rag_chain.return_value = mock_rag_chain
 
-    result = generate_answer(query, search_results)
+    query = "test query"
+    result = generate_answer_with_rag(query, mock_retriever_with_docs)
 
     # Assertions
-    mock_get_client.assert_called_once()
-    mock_model.generate_content.assert_called_once()
-    assert "This is the generated answer." in result
-    assert "**관련 이미지:**" in result
-    assert "/img/p1.png" in result
-    assert "/img/p2.png" in result
+    assert isinstance(result, dict)
+    assert "answer" in result
+    assert "image_paths" in result
+    assert result["answer"] == "Generated answer."
+    assert set(result["image_paths"]) == {'/img/p1.png', '/img/p2.png'}
+    mock_retriever_with_docs.invoke.assert_called_once_with(query) # Retriever is still called for image paths
+    mock_get_rag_chain.assert_called_once_with(mock_retriever_with_docs)
+    mock_rag_chain.invoke.assert_called_once_with(query)
+    # 추가적으로 prompt가 올바르게 구성되었는지 검증할 수 있지만, LCEL 내부 로직이므로 간소화
 
-def test_generate_answer_no_results():
-    """검색 결과가 없을 때의 테스트"""
-    result = generate_answer("any query", {})
-    assert result == "죄송합니다, 관련 정보를 찾을 수 없습니다."
 
-    result_empty_docs = generate_answer("any query", {'documents': [[]]})
-    assert result == "죄송합니다, 관련 정보를 찾을 수 없습니다."
+@patch('src.retrieval.generator.ChatGoogleGenerativeAI')
+@patch('src.retrieval.generator.load_dotenv', MagicMock())
+@patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_api_key'})
+def test_generate_answer_with_rag_no_results(mock_llm_class):
+    """Retriever가 문서 없이 빈 리스트를 반환할 때의 테스트"""
+    mock_retriever = MagicMock(spec=BaseRetriever)
+    mock_retriever.invoke.return_value = [] # 빈 문서 리스트 반환
     
-@patch('src.retrieval.generator.get_gemini_client')
-def test_generate_answer_api_exception(mock_get_client):
+@patch('src.retrieval.generator.get_rag_chain')
+@patch('src.retrieval.generator.load_dotenv', MagicMock())
+@patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_api_key'})
+def test_generate_answer_with_rag_no_results(mock_get_rag_chain):
+    """Retriever가 문서 없이 빈 리스트를 반환할 때의 테스트"""
+    mock_retriever = MagicMock(spec=BaseRetriever)
+    mock_retriever.invoke.return_value = [] # 빈 문서 리스트 반환
+
+    mock_rag_chain = MagicMock()
+    mock_rag_chain.invoke.return_value = "Generated answer based on no context."
+    mock_get_rag_chain.return_value = mock_rag_chain
+    
+    query = "test query"
+    result = generate_answer_with_rag(query, mock_retriever)
+
+    assert result["answer"] == "Generated answer based on no context."
+    assert result["image_paths"] == []
+    mock_retriever.invoke.assert_called_once_with(query)
+    mock_get_rag_chain.assert_called_once_with(mock_retriever)
+    mock_rag_chain.invoke.assert_called_once_with(query)
+
+
+@patch('src.retrieval.generator.get_rag_chain')
+@patch('src.retrieval.generator.load_dotenv', MagicMock())
+@patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_api_key'})
+def test_generate_answer_with_rag_api_exception(mock_get_rag_chain, mock_retriever_with_docs):
     """API 예외 발생 시 테스트"""
-    mock_model = MagicMock()
-    mock_model.generate_content.side_effect = Exception("API Error")
-    mock_get_client.return_value = mock_model
-
-    search_results = {
-        'documents': [['doc1 text']],
-        'metadatas': [[{'source': 'p1'}]]
-    }
+    mock_rag_chain = MagicMock()
+    mock_rag_chain.invoke.side_effect = Exception("LLM API Error")
+    mock_get_rag_chain.return_value = mock_rag_chain
     
-    result = generate_answer("query", search_results)
-    assert "오류가 발생했습니다" in result
+    query = "test query"
+    with pytest.raises(Exception, match="LLM API Error"):
+        generate_answer_with_rag(query, mock_retriever_with_docs)
+    
+    mock_retriever_with_docs.invoke.assert_called_once_with(query)
+    mock_get_rag_chain.assert_called_once_with(mock_retriever_with_docs)
+    mock_rag_chain.invoke.assert_called_once_with(query)
+# Helper function tests (optional, but good practice)
+def test_format_docs():
+    doc1 = Document(page_content="Content of doc1")
+    doc2 = Document(page_content="Content of doc2")
+    assert format_docs([doc1, doc2]) == "Content of doc1\n\nContent of doc2"
 
+def test_get_image_paths():
+    doc1 = Document(page_content="Text", metadata={'image_path': 'path1.png'})
+    doc2 = Document(page_content="Text", metadata={'image_path': 'path2.png'})
+    doc3 = Document(page_content="Text", metadata={})
+    doc4 = Document(page_content="Text", metadata={'image_path': 'path1.png'}) # Duplicate
+    assert get_image_paths([doc1, doc2, doc3, doc4]) == ['path1.png', 'path2.png']

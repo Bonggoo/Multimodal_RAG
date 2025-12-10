@@ -4,3 +4,11 @@ chromadb
 python-dotenv
 pytest
 pytest-cov
+langchain-core
+langchain-google-genai
+langchain-community
+langchain
+langchain-chroma
+langchain-text-splitters
+pydantic
+tiktoken

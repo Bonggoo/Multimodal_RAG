@@ -1,20 +1,16 @@
-import google.generativeai as genai
-import json
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, ValidationError
+import os
+import base64
+from typing import Optional
+from pydantic import ValidationError
+from dotenv import load_dotenv
 
-from .client import get_gemini_client
+from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-# --- Pydantic Models for Validation ---
-class Image(BaseModel):
-    description: str
-    caption: Optional[str] = None
+from .schema import PageContent
 
-class PageContent(BaseModel):
-    text: str
-    tables: List[str]
-    images: List[Image]
-    chapter_path: Optional[str] = None
+# Load environment variables
+load_dotenv()
 
 # --- System Prompt ---
 SYSTEM_PROMPT = """
@@ -47,22 +43,32 @@ def parse_page_multimodal(pdf_page_bytes: bytes) -> Optional[PageContent]:
         A validated PageContent object, or None if parsing or validation fails.
     """
     try:
-        model = get_gemini_client()
+        # Initialize LangChain's ChatGoogleGenerativeAI model
+        # using gemini-2.5-flash which has native PDF support and is cost-effective
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            temperature=0,
+            convert_system_message_to_human=True,
+            max_output_tokens=2048, 
+        ).with_structured_output(PageContent)
 
-        pdf_part = {"mime_type": "application/pdf", "data": pdf_page_bytes}
+        # Encode PDF bytes to base64
+        pdf_base64 = base64.b64encode(pdf_page_bytes).decode("utf-8")
 
-        response = model.generate_content(
-            [SYSTEM_PROMPT, pdf_part],
-            generation_config=genai.types.GenerationConfig(
-                response_mime_type="application/json"
-            )
+        # Construct the message with the system prompt and PDF part
+        # LangChain handles data URIs in 'image_url' by mapping them to inline_data for Gemini
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": SYSTEM_PROMPT},
+                {
+                    "type": "image_url", 
+                    "image_url": {"url": f"data:application/pdf;base64,{pdf_base64}"}
+                },
+            ]
         )
 
-        # Parse the JSON string into a Python dict
-        response_dict = json.loads(response.text)
-
-        # Validate the dictionary with Pydantic
-        validated_data = PageContent(**response_dict)
+        # Invoke the model
+        validated_data: PageContent = llm.invoke([message])
         return validated_data
 
     except ValidationError as e:

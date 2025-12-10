@@ -1,62 +1,89 @@
+import os
+from dotenv import load_dotenv
 from typing import List, Dict, Any
-from src.parsing.client import get_gemini_client
 
-def generate_answer(query: str, search_results: Dict[str, List[Any]]) -> str:
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.retrievers import BaseRetriever
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+# Load environment variables
+load_dotenv()
+
+def format_docs(docs: List[Any]) -> str:
     """
-    검색된 문서(context)와 사용자 질문을 바탕으로 Gemini를 사용하여 답변을 생성합니다.
-    관련된 이미지가 있는 경우, 답변에 이미지 경로를 포함합니다.
+    검색된 문서들을 단일 문자열 컨텍스트로 포맷합니다.
+    """
+    return "\n\n".join(doc.page_content for doc in docs)
+
+def get_image_paths(docs: List[Any]) -> List[str]:
+    """
+    검색된 문서들에서 고유한 이미지 경로를 추출합니다.
+    """
+    image_paths = set()
+    for doc in docs:
+        if doc.metadata.get('image_path'):
+            image_paths.add(doc.metadata['image_path'])
+    return sorted(list(image_paths))
+
+
+def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
+    """
+    LangChain Expression Language (LCEL)을 사용하여 RAG 체인을 생성합니다.
+
+    Args:
+        retriever (BaseRetriever): 문서 검색을 위한 검색기 객체.
+
+    Returns:
+        Runnable: 구성된 RAG 체인.
+    """
+    
+    # 프롬프트 템플릿
+    template = """
+    당신은 주어진 컨텍스트 정보를 바탕으로 사용자의 질문에 답변하는 유용한 AI 어시스턴트입니다.
+
+    **컨텍스트:**
+    {context}
+
+    **질문:**
+    {question}
+
+    **답변:**
+    """
+    prompt = ChatPromptTemplate.from_template(template)
+
+    # LLM 초기화
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+
+    # RAG 체인 구성
+    rag_chain = (
+        {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+    
+    return rag_chain
+
+def generate_answer_with_rag(query: str, retriever: BaseRetriever) -> Dict[str, Any]:
+    """
+    RAG 체인을 사용하여 사용자 질문에 답변을 생성하고,
+    관련된 이미지 경로를 함께 반환합니다.
 
     Args:
         query (str): 사용자 질문.
-        search_results (Dict[str, List[Any]]): `search_documents`로부터의 검색 결과.
+        retriever (BaseRetriever): 문서 검색을 위한 검색기 객체.
 
     Returns:
-        str: 생성된 답변.
+        Dict[str, Any]: 생성된 답변과 이미지 경로 리스트를 포함하는 딕셔너리.
     """
-    if not search_results or not search_results.get('documents') or not search_results['documents'][0]:
-        return "죄송합니다, 관련 정보를 찾을 수 없습니다."
+    rag_chain = get_rag_chain(retriever)
+    
+    # 체인을 실행하기 전에 검색된 문서들을 직접 가져와 이미지 경로를 추출합니다.
+    docs = retriever.invoke(query)
+    image_paths = get_image_paths(docs)
 
-    try:
-        # 1. 컨텍스트와 이미지 경로 구성
-        context_parts = []
-        image_paths = set()
-        
-        # search_results['documents']는 이중 리스트 [[]] 형태일 수 있으므로 확인
-        documents = search_results['documents'][0]
-        metadatas = search_results['metadatas'][0]
-
-        for doc, meta in zip(documents, metadatas):
-            context_parts.append(doc)
-            if meta.get('image_path'):
-                image_paths.add(meta['image_path'])
-        
-        context_str = "\n---\n".join(context_parts)
-
-        # 2. LLM 프롬프트 구성
-        prompt = f"""
-        당신은 주어진 컨텍스트 정보를 바탕으로 사용자의 질문에 답변하는 유용한 AI 어시스턴트입니다.
-
-        **컨텍스트:**
-        {context_str}
-
-        **질문:**
-        {query}
-
-        **답변:**
-        """
-
-        # 3. Gemini API 호출
-        model = get_gemini_client()
-        response = model.generate_content(prompt)
-        
-        answer = response.text
-
-        # 4. 답변에 이미지 경로 추가
-        if image_paths:
-            answer += "\n\n**관련 이미지:**\n" + "\n".join(f"- {path}" for path in sorted(list(image_paths)))
-
-        return answer
-
-    except Exception as e:
-        print(f"답변 생성 중 오류 발생: {e}")
-        return "답변을 생성하는 중에 오류가 발생했습니다."
+    answer = rag_chain.invoke(query)
+    
+    return {"answer": answer, "image_paths": image_paths}
