@@ -160,6 +160,11 @@ def ingest_pdf(
         typer.echo(f"성공: {success_count} 페이지, 스킵: {skip_count} 페이지, 실패: {fail_count} 페이지")
         typer.echo(f"총 {vector_store._collection.count()}개의 데이터가 벡터 스토어에 저장되었습니다.")
 
+        # 5. 검색 인덱스 갱신 (BM25)
+        typer.echo("검색 인덱스(BM25)를 갱신합니다...")
+        get_retriever(force_update=True)
+        typer.echo("검색 인덱스 갱신 완료.")
+
     except Exception as e:
         typer.secho(f"오류 발생: {e}", fg=typer.colors.RED)
         if 'original_pdf_doc' in locals() and original_pdf_doc.doc: # Check if open
