@@ -83,20 +83,37 @@ def test_add_page_content_to_vector_db(sample_page_content):
     # 텍스트 Document
     assert added_documents[0].page_content == "This is the main text."
     assert added_documents[0].metadata == {
-        "page_number": 1, "content_type": "text", "chapter_path": "Chapter 1", "image_path": "/path/to/image.png"
+        "page_number": 1, 
+        "content_type": "text", 
+        "chapter_path": "Chapter 1", 
+        "image_path": "/path/to/image.png",
+        "keywords": "",
+        "summary": ""
     }
 
     # 테이블 Document
     assert added_documents[1].page_content == "| col1 | col2 |\n|---|---|"
     assert added_documents[1].metadata == {
-        "page_number": 1, "content_type": "table", "table_index": 0, "chapter_path": "Chapter 1", "image_path": "/path/to/image.png"
+        "page_number": 1, 
+        "content_type": "table", 
+        "table_index": 0, 
+        "chapter_path": "Chapter 1", 
+        "image_path": "/path/to/image.png",
+        "keywords": "",
+        "summary": ""
     }
 
     # 이미지 설명 Document
     assert added_documents[2].page_content == "A description of an image."
     assert added_documents[2].metadata == {
-        "page_number": 1, "content_type": "image_description", "image_index": 0,
-        "chapter_path": "Chapter 1", "image_path": "/path/to/image.png", "image_caption": "A caption."
+        "page_number": 1, 
+        "content_type": "image_description", 
+        "image_index": 0,
+        "chapter_path": "Chapter 1", 
+        "image_path": "/path/to/image.png", 
+        "image_caption": "A caption.",
+        "keywords": "",
+        "summary": ""
     }
 
 

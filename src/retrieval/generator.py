@@ -1,3 +1,4 @@
+import re # Added for regex
 import os
 from dotenv import load_dotenv
 from typing import List, Dict, Any
@@ -8,18 +9,27 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.retrievers import BaseRetriever
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from src.retrieval.query_expansion import QueryExpander
+
 # Load environment variables
 load_dotenv()
 
 def format_docs(docs: List[Any]) -> str:
     """
     검색된 문서들을 단일 문자열 컨텍스트로 포맷합니다.
+    각 문서의 내용 앞에 출처 이미지 경로를 명시합니다.
     """
-    return "\n\n".join(doc.page_content for doc in docs)
+    formatted_docs = []
+    for doc in docs:
+        image_path = doc.metadata.get('image_path', 'N/A')
+        content = f"[Image Source: {image_path}]\n{doc.page_content}"
+        formatted_docs.append(content)
+    return "\n\n".join(formatted_docs)
 
 def get_image_paths(docs: List[Any]) -> List[str]:
     """
     검색된 문서들에서 고유한 이미지 경로를 추출합니다.
+    (Legacy: format_docs와 LLM 인용 방식으로 대체되면서 사용 빈도 줄어듦)
     """
     image_paths = set()
     for doc in docs:
@@ -31,6 +41,7 @@ def get_image_paths(docs: List[Any]) -> List[str]:
 def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     """
     LangChain Expression Language (LCEL)을 사용하여 RAG 체인을 생성합니다.
+    주의: 이 함수는 단순 체인 구성용이며, Query Expansion이 적용된 로직은 generate_answer_with_rag에서 처리합니다.
 
     Args:
         retriever (BaseRetriever): 문서 검색을 위한 검색기 객체.
@@ -38,10 +49,65 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     Returns:
         Runnable: 구성된 RAG 체인.
     """
-    
-    # 프롬프트 템플릿
+    # ... (기존과 동일, format_docs만 변경된 버전 사용) ...
+    # 이 함수는 현재 직접 호출되지 않고 generate_answer_with_rag의 로직을 따름
+    # 호환성을 위해 남겨두거나 업데이트
     template = """
     당신은 주어진 컨텍스트 정보를 바탕으로 사용자의 질문에 답변하는 유용한 AI 어시스턴트입니다.
+    
+    **컨텍스트:**
+    {context}
+
+    **질문:**
+    {question}
+
+    **답변:**
+    """
+    prompt = ChatPromptTemplate.from_template(template)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    
+    rag_chain = (
+        {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+    return rag_chain
+
+def generate_answer_with_rag(query: str, retriever: BaseRetriever) -> Dict[str, Any]:
+    """
+    RAG 체인을 사용하여 사용자 질문에 답변을 생성하고,
+    답변에 실제 인용된 이미지 경로만 추출하여 반환합니다.
+
+    Args:
+        query (str): 사용자 질문.
+        retriever (BaseRetriever): 문서 검색을 위한 검색기 객체.
+
+    Returns:
+        Dict[str, Any]: 생성된 답변, 인용된 이미지 경로 리스트, 확장된 쿼리.
+    """
+    # 1. 쿼리 확장 (Query Expansion)
+    expander = QueryExpander()
+    expanded_query = expander.expand(query)
+    
+    # 2. 확장된 쿼리로 문서 검색
+    docs = retriever.invoke(expanded_query)
+    context_text = format_docs(docs)
+
+    # 3. 답변 생성 (원본 질문 + 검색된 컨텍스트)
+    # 프롬프트: 답변 마지막에 인용된 이미지 소스를 리스트업 하도록 지시
+    template = """
+    당신은 주어진 컨텍스트 정보를 바탕으로 사용자의 질문에 답변하는 유용한 AI 어시스턴트입니다.
+    답변은 한국어로 작성하며, 기술적인 내용은 정확하게 전달해야 합니다.
+    컨텍스트에 없는 내용은 지어내지 말고 모른다고 답변하세요.
+
+    각 컨텍스트 블록은 `[Image Source: ...]`로 시작합니다.
+    답변을 작성할 때 참고한 컨텍스트가 있다면, 해당 컨텍스트의 `Image Source` 경로를 기억해두세요.
+    
+    답변의 맨 마지막에, 답변 작성에 실제로 참고한 모든 `Image Source` 경로를 다음 형식으로 나열해 주세요:
+    [[Cited Images: 경로1, 경로2, ...]]
+
+    만약 참고한 이미지가 없다면 `[[Cited Images: None]]`이라고 출력하세요.
 
     **컨텍스트:**
     {context}
@@ -52,38 +118,34 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     **답변:**
     """
     prompt = ChatPromptTemplate.from_template(template)
-
-    # LLM 초기화
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-
-    # RAG 체인 구성
-    rag_chain = (
-        {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()}
-        | prompt
-        | llm
-        | StrOutputParser()
-    )
     
-    return rag_chain
-
-def generate_answer_with_rag(query: str, retriever: BaseRetriever) -> Dict[str, Any]:
-    """
-    RAG 체인을 사용하여 사용자 질문에 답변을 생성하고,
-    관련된 이미지 경로를 함께 반환합니다.
-
-    Args:
-        query (str): 사용자 질문.
-        retriever (BaseRetriever): 문서 검색을 위한 검색기 객체.
-
-    Returns:
-        Dict[str, Any]: 생성된 답변과 이미지 경로 리스트를 포함하는 딕셔너리.
-    """
-    rag_chain = get_rag_chain(retriever)
+    chain = prompt | llm | StrOutputParser()
     
-    # 체인을 실행하기 전에 검색된 문서들을 직접 가져와 이미지 경로를 추출합니다.
-    docs = retriever.invoke(query)
-    image_paths = get_image_paths(docs)
-
-    answer = rag_chain.invoke(query)
+    full_response = chain.invoke({"context": context_text, "question": query})
     
-    return {"answer": answer, "image_paths": image_paths}
+    # 4. 답변과 이미지 경로 분리 (Regex Parsing)
+    # 예상 포맷: ... 답변 내용 ... [[Cited Images: path/to/img1.png, path/to/img2.png]]
+    cited_images = []
+    final_answer = full_response
+
+    match = re.search(r"\[\[Cited Images: (.*?)\]\]", full_response, re.DOTALL)
+    if match:
+        images_str = match.group(1)
+        if images_str.lower() != "none":
+            # 쉼표로 구분된 경로 추출 및 공백 제거
+            cited_images = [img.strip() for img in images_str.split(',')]
+        
+        # 답변 텍스트에서 메타데이터 태그 제거 (깔끔하게 보여주기 위해)
+        final_answer = full_response.replace(match.group(0), "").strip()
+    else:
+        # 매칭되지 않은 경우 (LLM이 형식을 안 지켰을 때), 기존 방식대로 모든 docs 이미지 반환할지, 아니면 빈 리스트 반환할지 결정.
+        # 여기서는 사용자가 "인용된 것만" 원했으므로, 매칭 안되면 빈 리스트가 안전함 (또는 전체 반환).
+        # Fallback: 전체 반환은 너무 많으므로, 빈 리스트로 두고 답변만 보여줌.
+        cited_images = []
+
+    return {
+        "answer": final_answer, 
+        "image_paths": cited_images, 
+        "expanded_query": expanded_query
+    }

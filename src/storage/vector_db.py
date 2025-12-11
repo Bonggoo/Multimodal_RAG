@@ -57,6 +57,7 @@ def add_page_content_to_vector_db(
     파싱된 페이지 콘텐츠를 LangChain Document 객체로 변환하여 Chroma 벡터 스토어에 적재합니다.
 
     텍스트, 테이블, 이미지 설명을 각각 별도의 Document로 저장합니다.
+    Keywords와 Summary를 메타데이터에 포함합니다.
 
     Args:
         page_content (PageContent): 파싱된 페이지 콘텐츠 Pydantic 모델.
@@ -66,10 +67,15 @@ def add_page_content_to_vector_db(
     """
     documents_to_add: List[Document] = []
     
+    # 키워드 리스트를 콤마로 구분된 문자열로 변환
+    keywords_str = ", ".join(page_content.keywords) if page_content.keywords else ""
+
     base_metadata = {
         "page_number": page_number,
         "chapter_path": page_content.chapter_path,
         "image_path": image_path,
+        "keywords": keywords_str,
+        "summary": page_content.summary or ""
     }
 
     # 1. 텍스트 콘텐츠 추가

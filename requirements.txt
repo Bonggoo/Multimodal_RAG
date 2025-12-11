@@ -12,3 +12,6 @@ langchain-chroma
 langchain-text-splitters
 pydantic
 tiktoken
+rank_bm25
+tqdm
+typer

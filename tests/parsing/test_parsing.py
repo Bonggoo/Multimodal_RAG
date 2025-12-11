@@ -46,6 +46,7 @@ def test_parse_page_success(mock_chat_google_generative_ai):
     # ChatGoogleGenerativeAI가 올바른 인자로 호출되었는지 확인하는 추가 검증이 필요할 수 있습니다.
 
 @patch('src.parsing.parser.load_dotenv', MagicMock())
+@patch('src.parsing.parser.time.sleep', MagicMock()) # retry delay 스킵
 @patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_api_key'})
 def test_parse_page_validation_error(mock_chat_google_generative_ai):
     """Pydantic 유효성 검사 실패 테스트 (LangChain의 structured_output이 ValidationError를 발생시키는 경우)"""
@@ -54,9 +55,11 @@ def test_parse_page_validation_error(mock_chat_google_generative_ai):
 
     result = parse_page_multimodal(b"dummy pdf bytes")
     assert result is None
-    mock_chat_google_generative_ai.invoke.assert_called_once()
+    # Retry logic: 1 initial call + 3 retries = 4 calls
+    assert mock_chat_google_generative_ai.invoke.call_count == 4
 
 @patch('src.parsing.parser.load_dotenv', MagicMock())
+@patch('src.parsing.parser.time.sleep', MagicMock()) # retry delay 스킵
 @patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_api_key'})
 def test_parse_page_api_exception(mock_chat_google_generative_ai):
     """API 호출 시 예외 발생 테스트"""
@@ -64,4 +67,5 @@ def test_parse_page_api_exception(mock_chat_google_generative_ai):
 
     result = parse_page_multimodal(b"dummy pdf bytes")
     assert result is None
-    mock_chat_google_generative_ai.invoke.assert_called_once()
+    # Retry logic: 1 initial call + 3 retries = 4 calls
+    assert mock_chat_google_generative_ai.invoke.call_count == 4
