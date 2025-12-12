@@ -17,6 +17,31 @@ except ImportError:
          # Fallback or re-raise if strictly needed, or try another location
          raise ImportError("EnsembleRetriever could not be imported from langchain.retrievers or langchain_classic.retrievers")
 
+# --- BM25 한국어 토크나이저 설정 (전역) ---
+# 이 함수는 pickle로 저장 및 로드해야 하므로, 전역 레벨에 정의되어야 합니다.
+try:
+    from konlpy.tag import Okt
+    from tqdm import tqdm
+
+    print("konlpy.tag.Okt 로드 성공. BM25에 한국어 토크나이저를 적용합니다.")
+    okt_tokenizer = Okt()
+    
+    def korean_tokenizer(text: str) -> List[str]:
+        """Okt를 사용한 전역 한국어 토크나이저"""
+        return okt_tokenizer.morphs(text)
+    
+    BM25_PREPROCESS_FUNC = korean_tokenizer
+
+except ImportError:
+    print("WARNING: konlpy가 설치되지 않았습니다. 기본 토크나이저(공백 기준)로 BM25를 초기화합니다. 한국어 검색 성능이 저하될 수 있습니다.")
+    from tqdm import tqdm # tqdm은 konlpy와 무관하게 사용 가능
+    # 기본 토크나이저 함수
+    def default_tokenizer(text: str) -> List[str]:
+        return text.split()
+    
+    BM25_PREPROCESS_FUNC = default_tokenizer
+# --- 끝 ---
+
 BM25_INDEX_PATH = Path("data/bm25_index.pkl")
 
 def get_retriever(
@@ -29,16 +54,6 @@ def get_retriever(
     """
     LangChain Chroma 벡터 스토어와 BM25를 결합한 EnsembleRetriever를 반환합니다.
     BM25 인덱스는 로컬 파일에 캐싱하여 성능을 최적화합니다.
-
-    Args:
-        collection_name (str): 사용할 컬렉션의 이름.
-        db_path (str): 데이터베이스 파일 경로.
-        search_kwargs (Dict[str, Any]): 검색에 전달할 추가 인자 (예: k=Top-K).
-        ensemble_weights (List[float]): [BM25 가중치, Vector 가중치]. 기본값은 [0.5, 0.5].
-        force_update (bool): True일 경우 BM25 인덱스를 강제로 재생성하고 저장합니다.
-
-    Returns:
-        BaseRetriever: 초기화된 LangChain 검색기 객체 (EnsembleRetriever).
     """
     vector_store = get_vector_store(collection_name=collection_name, db_path=db_path)
     
@@ -71,12 +86,16 @@ def get_retriever(
             return vector_retriever
 
         # LangChain Document 객체 리스트로 변환
-        documents = []
-        for text, metadata in zip(texts, metadatas):
-            documents.append(Document(page_content=text, metadata=metadata))
+        documents = [Document(page_content=text, metadata=metadata) for text, metadata in zip(texts, metadatas)]
 
-        # BM25 Retriever 초기화
-        bm25_retriever = BM25Retriever.from_documents(documents)
+        print("BM25 인덱스 생성을 시작합니다 (데이터 양에 따라 시간이 소요될 수 있습니다)...")
+        
+        # BM25 Retriever 초기화 (전역 토크나이저 사용)
+        bm25_retriever = BM25Retriever.from_documents(
+            documents=tqdm(documents, desc="BM25 인덱싱"),
+            preprocess_func=BM25_PREPROCESS_FUNC
+        )
+        
         bm25_retriever.k = search_kwargs.get("k", 20)
         
         # 인덱스 저장

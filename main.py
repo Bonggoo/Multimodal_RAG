@@ -6,22 +6,6 @@ import typer
 from pathlib import Path
 from tqdm import tqdm
 import fitz # PyMuPDF for page byte extraction
-
-# 각 모듈에서 필요한 함수들을 임포트합니다.
-from src.preprocessing.loader import load_pdf_as_documents
-from src.preprocessing.thumbnail import create_thumbnails
-from src.parsing.parser import parse_page_multimodal
-from src.storage.vector_db import get_vector_store, add_page_content_to_vector_db
-from src.retrieval.retriever import get_retriever
-from src.retrieval.generator import generate_answer_with_rag
-
-# Typer 앱 생성
-app = typer.Typer(help="Multimodal RAG CLI 애플리케이션")
-
-import typer
-from pathlib import Path
-from tqdm import tqdm
-import fitz # PyMuPDF for page byte extraction
 import concurrent.futures
 
 # 각 모듈에서 필요한 함수들을 임포트합니다.
@@ -98,7 +82,8 @@ def ingest_pdf(
 
         # 3. Chroma 벡터 스토어 가져오기
         vector_store = get_vector_store()
-        typer.echo(f"Chroma 벡터 스토어 준비 완료.")
+        initial_count = vector_store._collection.count()
+        typer.echo(f"Chroma 벡터 스토어 준비 완료. (현재 데이터: {initial_count}개)")
 
         # 4. 페이지별 파싱 및 적재 (병렬 처리)
         typer.echo("페이지별 파싱 및 벡터 스토어 적재를 시작합니다 (병렬 처리)...")
@@ -124,7 +109,7 @@ def ingest_pdf(
                     writer.close()
 
                     # 해당 페이지의 썸네일 경로 찾기
-                    page_thumbnail_path = next((p for p in thumbnail_paths if f"_p{page_num:03d}" in p), None)
+                    page_thumbnail_path = next((p for p in thumbnail_paths if f"page_{page_num:03d}" in p), None)
 
                     # 작업 제출
                     future = executor.submit(process_page_task, page_num, page_bytes, page_thumbnail_path, vector_store)
@@ -158,7 +143,10 @@ def ingest_pdf(
 
         typer.secho(f"\n'{file_path.name}' 파일 처리가 완료되었습니다.", fg=typer.colors.GREEN)
         typer.echo(f"성공: {success_count} 페이지, 스킵: {skip_count} 페이지, 실패: {fail_count} 페이지")
-        typer.echo(f"총 {vector_store._collection.count()}개의 데이터가 벡터 스토어에 저장되었습니다.")
+        
+        final_count = vector_store._collection.count()
+        added_count = final_count - initial_count
+        typer.echo(f"이번 작업으로 {added_count}개 데이터 추가 완료. 현재 총 데이터: {final_count}개")
 
         # 5. 검색 인덱스 갱신 (BM25)
         typer.echo("검색 인덱스(BM25)를 갱신합니다...")

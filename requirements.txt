@@ -15,3 +15,4 @@ tiktoken
 rank_bm25
 tqdm
 typer
+konlpy
