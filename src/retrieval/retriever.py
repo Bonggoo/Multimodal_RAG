@@ -8,14 +8,7 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from src.storage.vector_db import get_vector_store
 
-try:
-    from langchain.retrievers import EnsembleRetriever
-except ImportError:
-    try:
-        from langchain_classic.retrievers import EnsembleRetriever
-    except ImportError:
-         # Fallback or re-raise if strictly needed, or try another location
-         raise ImportError("EnsembleRetriever could not be imported from langchain.retrievers or langchain_classic.retrievers")
+from langchain_community.retrievers import EnsembleRetriever
 
 # --- BM25 한국어 토크나이저 설정 (전역) ---
 # 이 함수는 pickle로 저장 및 로드해야 하므로, 전역 레벨에 정의되어야 합니다.
