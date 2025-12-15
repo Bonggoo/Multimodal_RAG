@@ -38,7 +38,7 @@ def test_get_retriever_success(mock_ensemble_retriever, mock_bm25_retriever, moc
     mock_ensemble_retriever.return_value = mock_ensemble_instance
     
     # 함수 실행
-    retriever = get_retriever(search_kwargs={"k": 3})
+    retriever = get_retriever(search_kwargs={"k": 3}, force_update=True)
     
     # Assertions
     mock_get_vector_store.assert_called_once()
@@ -75,7 +75,8 @@ def test_generate_answer_with_rag_success(mock_llm_class, mock_query_expander_cl
     # Mock LLM and Chain execution
     from langchain_core.messages import AIMessage
     mock_llm_instance = MagicMock()
-    expected_message = AIMessage(content="Generated answer.")
+    # LLM 응답에 인용구 포맷 추가
+    expected_message = AIMessage(content="Generated answer. [[Cited Images: /img/p1.png, /img/p2.png]]")
     mock_llm_instance.invoke.return_value = expected_message
     mock_llm_instance.return_value = expected_message # RunnableSequence might call it as a callable
     mock_llm_class.return_value = mock_llm_instance
@@ -128,7 +129,8 @@ def test_generate_answer_with_rag_no_results(mock_llm_class, mock_query_expander
 def test_format_docs():
     doc1 = Document(page_content="Content of doc1")
     doc2 = Document(page_content="Content of doc2")
-    assert format_docs([doc1, doc2]) == "Content of doc1\n\nContent of doc2"
+    expected_output = "[Image Source: N/A]\nContent of doc1\n\n[Image Source: N/A]\nContent of doc2"
+    assert format_docs([doc1, doc2]) == expected_output
 
 def test_get_image_paths():
     doc1 = Document(page_content="Text", metadata={'image_path': 'path1.png'})

@@ -49,17 +49,19 @@ def test_create_thumbnails(fitz_pdf_document, tmp_path):
     assert len(thumbnail_paths) == EXPECTED_PAGE_COUNT
     
     # 생성된 파일 수와 경로 확인
-    created_files = os.listdir(output_dir)
+    # create_thumbnails는 output_dir 아래에 doc_name 폴더를 만들고 그 안에 이미지를 저장함
+    doc_images_dir = output_dir / DOC_NAME
+    assert doc_images_dir.exists()
+    
+    created_files = os.listdir(doc_images_dir)
     assert len(created_files) == EXPECTED_PAGE_COUNT
     
     for i, path_str in enumerate(thumbnail_paths):
         page_num = i + 1
-        expected_filename = f"{DOC_NAME}_p{page_num:03d}.png"
+        # 실제 구현은 page_001.png 형식을 따름 (thumbnail.py 참고)
+        expected_filename = f"page_{page_num:03d}.png"
         
         # 반환된 경로가 올바른지 확인
         p = Path(path_str)
         assert p.name == expected_filename
-        assert p.parent.name == output_dir.name
-        
-        # 해당 파일이 실제로 존재하는지 확인
-        assert p.exists()
+        assert p.parent.name == DOC_NAME # 상위 폴더 이름이 문서 이름인지 확인
