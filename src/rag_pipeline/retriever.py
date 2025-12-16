@@ -6,7 +6,8 @@ from langchain_chroma import Chroma
 from langchain_core.retrievers import BaseRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
-from src.storage.vector_db import get_vector_store
+from src.config import settings
+from src.rag_pipeline.vector_db import get_vector_store
 
 try:
     from langchain.retrievers import EnsembleRetriever  # type: ignore
@@ -42,11 +43,11 @@ except ImportError:
     BM25_PREPROCESS_FUNC = default_tokenizer
 # --- 끝 ---
 
-BM25_INDEX_PATH = Path("data/bm25_index.pkl")
+BM25_INDEX_PATH = Path(settings.BM25_INDEX_PATH)
 
 def get_retriever(
-    collection_name: str = "manual_rag",
-    db_path: str = "chroma_db",
+    collection_name: str = settings.COLLECTION_NAME,
+    db_path: str = settings.CHROMA_DB_DIR,
     search_kwargs: Dict[str, Any] = {"k": 20},
     ensemble_weights: List[float] = [0.5, 0.5],
     force_update: bool = False

@@ -3,15 +3,12 @@ import base64
 import time
 from typing import Optional
 from pydantic import ValidationError
-from dotenv import load_dotenv
 
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .schema import PageContent
-
-# Load environment variables
-load_dotenv()
+from src.config import settings
 
 # --- System Prompt ---
 SYSTEM_PROMPT = """
@@ -48,10 +45,11 @@ def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3) -> Option
         A validated PageContent object, or None if parsing or validation fails after retries.
     """
     # Initialize LangChain's ChatGoogleGenerativeAI model
-    # using gemini-2.5-flash which has native PDF support and is cost-effective
+    # using settings.GEMINI_MODEL (e.g. gemini-1.5-pro or gemini-2.5-flash)
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+        model=settings.GEMINI_MODEL,
         temperature=0,
+        google_api_key=settings.GOOGLE_API_KEY.get_secret_value(),
         convert_system_message_to_human=True,
         max_output_tokens=2048, 
     ).with_structured_output(PageContent)

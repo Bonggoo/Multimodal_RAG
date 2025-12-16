@@ -3,18 +3,19 @@
 Typer를 사용하여 문서 업로드(ingest)와 질문(qa) 기능을 제공합니다.
 """
 import typer
+import uvicorn
 from pathlib import Path
 from tqdm import tqdm
 import fitz # PyMuPDF for page byte extraction
 import concurrent.futures
 
 # 각 모듈에서 필요한 함수들을 임포트합니다.
-from src.preprocessing.loader import load_pdf_as_documents
-from src.preprocessing.thumbnail import create_thumbnails
-from src.parsing.parser import parse_page_multimodal
-from src.storage.vector_db import get_vector_store, add_page_content_to_vector_db
-from src.retrieval.retriever import get_retriever
-from src.retrieval.generator import generate_answer_with_rag
+from src.rag_pipeline.loader import load_pdf_as_documents
+from src.rag_pipeline.thumbnail import create_thumbnails
+from src.rag_pipeline.parser import parse_page_multimodal
+from src.rag_pipeline.vector_db import get_vector_store, add_page_content_to_vector_db
+from src.rag_pipeline.retriever import get_retriever
+from src.rag_pipeline.generator import generate_answer_with_rag
 
 # Typer 앱 생성
 app = typer.Typer(help="Multimodal RAG CLI 애플리케이션")
@@ -198,6 +199,19 @@ def ask_question(
     except Exception as e:
         typer.secho(f"질문 처리 중 오류 발생: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
+
+
+@app.command(name="serve", help="FastAPI 서버를 실행합니다.")
+def serve_api(
+    host: str = typer.Option("0.0.0.0", help="서버 호스트"),
+    port: int = typer.Option(8000, help="서버 포트"),
+    reload: bool = typer.Option(True, help="코드 변경 시 자동 재시작 (개발 모드)")
+):
+    """
+    Multimodal RAG API 서버를 실행합니다.
+    """
+    typer.echo(f"API 서버를 시작합니다... http://{host}:{port}")
+    uvicorn.run("src.api.main:app", host=host, port=port, reload=reload)
 
 
 if __name__ == "__main__":

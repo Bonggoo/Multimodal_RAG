@@ -1,6 +1,5 @@
-import re # Added for regex
+import re 
 import os
-from dotenv import load_dotenv
 from typing import List, Dict, Any
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -9,10 +8,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.retrievers import BaseRetriever
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from src.retrieval.query_expansion import QueryExpander
-
-# Load environment variables
-load_dotenv()
+from src.rag_pipeline.query_expansion import QueryExpander
+from src.config import settings
 
 def format_docs(docs: List[Any]) -> str:
     """
@@ -49,9 +46,6 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     Returns:
         Runnable: 구성된 RAG 체인.
     """
-    # ... (기존과 동일, format_docs만 변경된 버전 사용) ...
-    # 이 함수는 현재 직접 호출되지 않고 generate_answer_with_rag의 로직을 따름
-    # 호환성을 위해 남겨두거나 업데이트
     template = """
     당신은 주어진 컨텍스트 정보를 바탕으로 사용자의 질문에 답변하는 유용한 AI 어시스턴트입니다.
     
@@ -64,7 +58,11 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     **답변:**
     """
     prompt = ChatPromptTemplate.from_template(template)
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(
+        model=settings.GEMINI_MODEL,
+        temperature=0,
+        google_api_key=settings.GOOGLE_API_KEY.get_secret_value()
+    )
     
     rag_chain = (
         {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()}
@@ -118,7 +116,11 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever) -> Dict[str, 
     **답변:**
     """
     prompt = ChatPromptTemplate.from_template(template)
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(
+        model=settings.GEMINI_MODEL,
+        temperature=0,
+        google_api_key=settings.GOOGLE_API_KEY.get_secret_value()
+    )
     
     chain = prompt | llm | StrOutputParser()
     
@@ -139,9 +141,6 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever) -> Dict[str, 
         # 답변 텍스트에서 메타데이터 태그 제거 (깔끔하게 보여주기 위해)
         final_answer = full_response.replace(match.group(0), "").strip()
     else:
-        # 매칭되지 않은 경우 (LLM이 형식을 안 지켰을 때), 기존 방식대로 모든 docs 이미지 반환할지, 아니면 빈 리스트 반환할지 결정.
-        # 여기서는 사용자가 "인용된 것만" 원했으므로, 매칭 안되면 빈 리스트가 안전함 (또는 전체 반환).
-        # Fallback: 전체 반환은 너무 많으므로, 빈 리스트로 두고 답변만 보여줌.
         cited_images = []
 
     return {

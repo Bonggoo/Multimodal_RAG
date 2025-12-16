@@ -1,23 +1,39 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "multimodal_rag"
+[tool.poetry]
+name = "multimodal-rag"
 version = "0.0.1"
 description = "A multimodal RAG project"
+authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-requires-python = ">=3.9"
-dependencies = [
-    "pymupdf",
-    "google-generativeai",
-    "chromadb",
-    "python-dotenv",
-    "pytest",
-    "pytest-cov",
-    # pydantic is a dependency of google-genai, but it's good to be explicit
-    "pydantic", 
-]
+packages = [{include = "multimodal_rag", from = "src"}]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13" # konlpy가 3.13 이상을 지원하지 않을 수 있음
+pymupdf = "*"
+google-generativeai = "*"
+chromadb = "*"
+python-dotenv = "*"
+langchain-core = "*"
+langchain-google-genai = "*"
+langchain-community = "*"
+langchain = "*"
+langchain-chroma = "*"
+langchain-text-splitters = "*"
+pydantic = "*"
+tiktoken = "*"
+rank_bm25 = "*"
+tqdm = "*"
+typer = "*"
+pydantic-settings = "^2.12.0"
+fastapi = "^0.124.4"
+uvicorn = "^0.38.0"
+python-multipart = "^0.0.20"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+pytest-cov = "*"
+konlpy = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

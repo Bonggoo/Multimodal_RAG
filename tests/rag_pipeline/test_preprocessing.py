@@ -6,8 +6,8 @@ from pathlib import Path
 from langchain_core.documents import Document
 
 # 테스트 대상 함수 임포트
-from src.preprocessing.loader import load_pdf_as_documents
-from src.preprocessing.thumbnail import create_thumbnails
+from src.rag_pipeline.loader import load_pdf_as_documents
+from src.rag_pipeline.thumbnail import create_thumbnails
 
 # 테스트 설정
 TEST_PDF_PATH = "tests/assets/test_document.pdf"

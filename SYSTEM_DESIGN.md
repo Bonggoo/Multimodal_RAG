@@ -4,83 +4,113 @@
 
 이 문서는 PDF 문서 기반의 멀티모달(Multimodal) 질의응답(RAG) 시스템의 아키텍처와 구성 요소, 데이터 흐름을 상세히 설명합니다.
 
-본 시스템의 주요 목적은 텍스트와 이미지가 혼합된 PDF 문서의 내용을 이해하고, 사용자의 질문에 대해 문서 기반의 정확한 답변을 생성하는 것입니다. 이를 위해 이미지 내용은 텍스트 설명으로 변환되며, 모든 정보는 텍스트 기반으로 임베딩 및 검색됩니다.
+본 시스템의 주요 목적은 텍스트와 이미지가 혼합된 PDF 문서의 내용을 이해하고, 사용자의 질문에 대해 문서 기반의 정확한 답변을 생성하는 것입니다. 이를 위해 LangChain 프레임워크를 기반으로 파이프라인을 구축하고, FastAPI를 통해 API 인터페이스를 제공합니다.
 
 ## 2. 시스템 아키텍처
 
-아래 다이어그램은 전체 시스템의 데이터 흐름과 주요 구성 요소 간의 상호작용을 보여줍니다.
+전체 시스템은 **CLI**와 **API** 두 개의 진입점을 통해 핵심 **RAG 파이프라인**을 사용합니다.
 
 ```mermaid
 graph TD
-    A[PDF 문서] --> B(1. 전처리<br>/src/preprocessing);
-    B --> C(2. 파싱<br>/src/parsing);
-    C -- 텍스트, 테이블,<br>이미지 설명 --> D{3. 임베딩 및 저장<br>/src/storage};
-    D -- "Google 'text-embedding-004'" --> E[Chroma 벡터 DB];
-    
-    subgraph Retrieval-Generation Pipeline
-        F[사용자 질문] --> G(4. 검색<br>/src/retrieval);
-        G -- 하이브리드 검색<br>(BM25 + Vector) --> E;
-        E -- 검색된 문서 조각 --> H(5. 답변 생성<br>/src/retrieval/generator);
-        H -- 최종 답변 --> I[사용자];
+    subgraph "입력 소"
+        A[PDF 문서]
+        B[사용자 질문]
     end
+
+    subgraph "진입점 (Entrypoints)"
+        C[CLI<br>(main.py)]
+        D[API<br>(src/api/main.py)]
+    end
+
+    subgraph "핵심 파이프라인 (src/rag_pipeline)"
+        E(1. 로딩 및 전처리<br>/loader.py, /thumbnail.py)
+        F(2. 파싱 및 구조화<br>/parser.py, /schema.py)
+        G(3. 임베딩 및 저장<br>/vector_db.py)
+        H(4. 검색<br>/retriever.py, /query_expansion.py)
+        I(5. 답변 생성<br>/generator.py)
+    end
+    
+    subgraph "데이터 저장소"
+        J[Chroma 벡터 DB]
+        K[BM25 인덱스]
+    end
+
+    L[최종 답변]
+
+    A --> C -- Ingest --> E
+    E --> F
+    F --> G --> J
+    F --> K
+
+    B --> C -- QA --> H
+    B --> D -- QA --> H
+    H -- 하이브리드 검색 --> J
+    H -- 하이브리드 검색 --> K
+    J --> I
+    K --> I
+    I --> L
 ```
 
 ## 3. 주요 구성 요소
 
-### 3.1. 데이터 전처리 (`src/preprocessing`)
+### 3.1. RAG 파이프라인 (`src/rag_pipeline`)
 
--   **역할**: 입력된 PDF 문서를 처리 가능한 형태로 준비하는 단계입니다.
--   **주요 모듈**:
-    -   `loader.py`: PDF 파일을 로드하여 페이지별로 분리합니다.
-    -   `thumbnail.py`: 문서의 각 페이지에 대한 썸네일 이미지를 생성하여 시각적 참조 자료로 활용합니다.
+핵심 RAG 로직을 수행하는 모듈 집합입니다. 각 모듈은 파이프라인의 특정 단계를 담당합니다.
 
-### 3.2. 콘텐츠 파싱 (`src/parsing`)
+-   **`loader.py`**: `PyMuPDFLoader`를 사용하여 PDF 문서를 페이지별 `Document` 객체로 로드합니다.
+-   **`thumbnail.py`**: 문서 각 페이지의 썸네일 이미지를 생성하여 시각적 출처로 활용합니다.
+-   **`parser.py`**: `Gemini Pro` 멀티모달 모델과 `with_structured_output`을 사용하여 각 페이지에서 텍스트, 테이블, 이미지를 분석하고 구조화된 `PageContent` 객체로 변환합니다.
+-   **`schema.py`**: 파이프라인 전체에서 사용되는 데이터 구조를 Pydantic 모델로 정의합니다. (예: `PageContent`)
+-   **`vector_db.py`**: `Chroma`와 `GoogleGenerativeAIEmbeddings`를 사용하여 파싱된 데이터를 벡터로 변환하고 DB에 저장/검색하는 인터페이스를 제공합니다.
+-   **`retriever.py`**: `EnsembleRetriever`를 사용하여 BM25(키워드 기반) 검색과 벡터(의미 기반) 검색을 결합한 하이브리드 검색을 수행합니다.
+-   **`query_expansion.py`**: LLM을 사용하여 사용자 질문을 검색에 유리한 여러 하위 질문으로 확장합니다.
+-   **`generator.py`**: LangChain Expression Language (LCEL)을 사용하여 검색된 컨텍스트를 바탕으로 최종 답변을 생성하는 RAG 체인을 구성합니다.
 
--   **역할**: 전처리된 각 페이지에서 의미있는 정보를 추출하고 구조화합니다.
--   **주요 모듈**:
-    -   `parser.py`: 페이지 내에서 텍스트, 표(table)를 추출합니다.
-    -   **핵심 로직**: 페이지 내 이미지를 인식하고, 이에 대한 **텍스트 설명을 생성**합니다. 이 과정을 통해 시각적 정보(이미지)가 검색 가능한 텍스트 정보로 변환됩니다.
-    -   `schema.py`: 파싱된 데이터(텍스트, 테이블, 이미지 설명, 키워드, 요약 등)를 담는 Pydantic 데이터 모델을 정의합니다.
+### 3.2. API (`src/api`)
 
-### 3.3. 스토리지 및 임베딩 (`src/storage`)
+FastAPI를 사용하여 RAG 파이프라인을 웹 서비스로 제공합니다.
 
--   **역할**: 파싱된 텍스트 데이터를 벡터로 변환하고, 이를 검색할 수 있도록 데이터베이스에 저장합니다.
--   **주요 모듈**:
-    -   `vector_db.py`:
-        1.  **임베딩**: Google의 `text-embedding-004` 모델을 사용하여 텍스트, 테이블, 이미지 설명 등 모든 텍스트 정보를 벡터(Embedding)로 변환합니다.
-        2.  **저장**: 생성된 벡터를 메타데이터(페이지 번호, 콘텐츠 타입 등)와 함께 `Chroma DB`에 저장합니다.
+-   **`main.py`**: FastAPI 앱을 초기화하고 서버를 실행하는 진입점입니다.
+-   **`routes.py`**: `/ingest`, `/qa` 등 API 엔드포인트를 정의하고, `rag_pipeline`의 기능을 호출하여 결과를 반환합니다.
+-   **`schemas.py`**: API의 요청 및 응답에 사용되는 데이터 모델을 정의합니다.
 
-### 3.4. 검색 (`src/retrieval`)
+### 3.3. 설정 (`src/config.py`)
 
--   **역할**: 사용자 질문과 가장 관련성이 높은 문서 조각(chunks)을 데이터베이스에서 찾아내는 단계입니다.
--   **주요 모듈**:
-    -   `retriever.py`: **하이브리드 검색(Hybrid Search)** 방식을 사용하여 검색 정확도를 높입니다.
-        -   **Vector Search**: 의미론적으로 유사한 콘텐츠를 찾습니다. (예: "자동차 그림" -> "승용차 이미지 설명")
-        -   **BM25**: 키워드 일치 기반으로 정확한 용어를 찾습니다. 한국어 형태소 분석기(`konlpy`)를 사용하여 조사, 어미 등을 처리하고 검색 성능을 향상시킵니다.
-        -   `EnsembleRetriever`를 사용해 위 두 방식의 결과를 결합합니다.
-    -   `query_expansion.py`: 사용자의 원본 질문을 다양한 형태로 확장하여 검색 성능을 보강합니다.
-
-### 3.5. 답변 생성 (`src/retrieval/generator.py`)
-
--   **역할**: 검색된 문서 조각과 사용자 질문을 바탕으로 최종 답변을 생성합니다.
--   **로직**:
-    1.  `retriever`가 찾은 관련성 높은 문서 조각들을 컨텍스트(Context)로 구성합니다.
-    2.  이 컨텍스트와 원본 질문을 프롬프트(Prompt)로 조합합니다.
-    3.  조합된 프롬프트를 Google Gemini와 같은 대규모 언어 모델(LLM)에 전달하여 자연스러운 형태의 최종 답변을 생성하도록 요청합니다.
+`pydantic-settings`를 사용하여 프로젝트의 모든 설정을 중앙에서 관리합니다. `.env` 파일에서 환경 변수를 로드하며, 타입 안정성을 보장합니다.
 
 ## 4. 기술 스택
 
--   **코어 프레임워크**: `LangChain`
+-   **코어 프레임워크**: `LangChain`, `FastAPI`
+-   **CLI**: `Typer`
+-   **웹 서버**: `Uvicorn`
 -   **임베딩 모델**: Google `text-embedding-004`
--   **생성 모델**: Google `Gemini` 계열 모델 (추정)
+-   **생성/파싱 모델**: Google `Gemini` 계열 모델
 -   **벡터 데이터베이스**: `ChromaDB`
--   **한국어 자연어 처리**: `konlpy` (Okt 형태소 분석기)
--   **환경변수 관리**: `python-dotenv`
+-   **한국어 자연어 처리**: `konlpy` (Okt)
+-   **설정 관리**: `pydantic-settings`
+-   **의존성 관리**: `Poetry`
 
 ## 5. 환경 설정 및 실행
 
--   **API 키**: 프로젝트 루트 디렉토리에 `.env` 파일을 생성하고 `GOOGLE_API_KEY`를 설정해야 합니다.
+### 5.1. 환경 설정
+
+-   **의존성 설치**: `poetry install` 명령어로 `pyproject.toml`에 명시된 모든 패키지를 설치합니다.
+-   **API 키**: 프로젝트 루트에 `.env` 파일을 생성하고 `GOOGLE_API_KEY`를 설정합니다.
     ```
     GOOGLE_API_KEY="YOUR_API_KEY_HERE"
     ```
--   **실행**: `main.py`는 위에서 설명한 모든 구성 요소를 통합하여 전체 RAG 파이프라인을 실행하는 진입점(entry point) 역할을 합니다.
+
+### 5.2. 실행
+
+-   **CLI**: `main.py`를 직접 실행하여 문서를 처리하거나 질문합니다.
+    ```bash
+    # 문서 처리
+    python main.py ingest "path/to/doc.pdf"
+
+    # 질의응답
+    python main.py qa "Your question here"
+    ```
+-   **API 서버**: `uvicorn`을 사용하여 FastAPI 서버를 실행합니다.
+    ```bash
+    uvicorn src.api.main:app --reload
+    ```

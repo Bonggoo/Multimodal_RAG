@@ -7,14 +7,14 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_chroma import Chroma
 
 # 테스트 대상 모듈 임포트
-from src.retrieval.retriever import get_retriever
-from src.retrieval.generator import generate_answer_with_rag, format_docs, get_image_paths
+from src.rag_pipeline.retriever import get_retriever
+from src.rag_pipeline.generator import generate_answer_with_rag, format_docs, get_image_paths
 
 # --- get_retriever 테스트 ---
 
-@patch('src.retrieval.retriever.get_vector_store')
-@patch('src.retrieval.retriever.BM25Retriever')
-@patch('src.retrieval.retriever.EnsembleRetriever')
+@patch('src.rag_pipeline.retriever.get_vector_store')
+@patch('src.rag_pipeline.retriever.BM25Retriever')
+@patch('src.rag_pipeline.retriever.EnsembleRetriever')
 def test_get_retriever_success(mock_ensemble_retriever, mock_bm25_retriever, mock_get_vector_store):
     """Retriever 생성 성공 테스트 (EnsembleRetriever)"""
     mock_vector_store = MagicMock(spec=Chroma)
@@ -38,7 +38,7 @@ def test_get_retriever_success(mock_ensemble_retriever, mock_bm25_retriever, moc
     mock_ensemble_retriever.return_value = mock_ensemble_instance
     
     # 함수 실행
-    retriever = get_retriever(search_kwargs={"k": 3}, force_update=True)
+    retriever = get_retriever(force_update=True)
     
     # Assertions
     mock_get_vector_store.assert_called_once()
@@ -61,12 +61,15 @@ def mock_retriever_with_docs():
     ]
     return mock_retriever
 
-@patch('src.retrieval.generator.QueryExpander')
-@patch('src.retrieval.generator.ChatGoogleGenerativeAI')
-@patch('src.retrieval.generator.load_dotenv', MagicMock())
-@patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_api_key'})
-def test_generate_answer_with_rag_success(mock_llm_class, mock_query_expander_class, mock_retriever_with_docs):
+@patch('src.rag_pipeline.generator.QueryExpander')
+@patch('src.rag_pipeline.generator.ChatGoogleGenerativeAI')
+@patch('src.rag_pipeline.generator.settings')
+def test_generate_answer_with_rag_success(mock_settings, mock_llm_class, mock_query_expander_class, mock_retriever_with_docs):
     """RAG 체인을 사용한 답변 생성 성공 테스트"""
+    # Mock settings
+    mock_settings.GEMINI_MODEL = "mock-model"
+    mock_settings.GOOGLE_API_KEY.get_secret_value.return_value = "mock-key"
+
     # Mock QueryExpander
     mock_expander_instance = MagicMock()
     mock_expander_instance.expand.return_value = "expanded query"
@@ -97,12 +100,15 @@ def test_generate_answer_with_rag_success(mock_llm_class, mock_query_expander_cl
     mock_retriever_with_docs.invoke.assert_called_once_with("expanded query")
 
 
-@patch('src.retrieval.generator.QueryExpander')
-@patch('src.retrieval.generator.ChatGoogleGenerativeAI')
-@patch('src.retrieval.generator.load_dotenv', MagicMock())
-@patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_api_key'})
-def test_generate_answer_with_rag_no_results(mock_llm_class, mock_query_expander_class):
+@patch('src.rag_pipeline.generator.QueryExpander')
+@patch('src.rag_pipeline.generator.ChatGoogleGenerativeAI')
+@patch('src.rag_pipeline.generator.settings')
+def test_generate_answer_with_rag_no_results(mock_settings, mock_llm_class, mock_query_expander_class):
     """Retriever가 문서 없이 빈 리스트를 반환할 때의 테스트"""
+    # Mock settings
+    mock_settings.GEMINI_MODEL = "mock-model"
+    mock_settings.GOOGLE_API_KEY.get_secret_value.return_value = "mock-key"
+
     mock_retriever = MagicMock(spec=BaseRetriever)
     mock_retriever.invoke.return_value = [] # 빈 문서 리스트 반환
     

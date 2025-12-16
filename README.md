@@ -59,104 +59,83 @@ graph TD
     cd Multimodal_RAG
     ```
 
-2.  **가상환경 생성 및 활성화:**
+2.  **Poetry를 사용하여 의존성 패키지 설치:**
+    *Poetry가 설치되어 있어야 합니다.*
     ```bash
-    python -m venv venv
-    source venv/bin/activate  # macOS/Linux
-    # venv\Scripts\activate    # Windows
+    poetry install
     ```
 
-3.  **의존성 패키지 설치:**
+3.  **가상환경 활성화:**
     ```bash
-    pip install -r requirements.txt
+    poetry shell
     ```
 
 4.  **환경 변수 설정:**
-    `.env` 파일을 프로젝트 루트 디렉터리에 생성하고 Google API 키를 추가합니다.
+    `.env` 파일을 프로젝트 루트 디렉터리에 생성하고 Google API 키를 추가합니다. `src/config.py`의 `Settings` 클래스를 참고하세요.
     ```
-    GOOGLE_API_KEY="여기에_당신의_API_키를_입력하세요"
+    GOOGLE_API_KEY="YOUR_API_KEY_HERE"
     ```
 
 ## 🚀 사용법 (Usage)
 
-### 1. 문서 처리 (Ingest)
+본 프로젝트는 CLI와 API 두 가지 인터페이스를 제공합니다.
 
-`ingest` 명령어를 사용하여 PDF 문서를 데이터베이스에 추가합니다. 실행이 완료되면, 이번 작업으로 추가된 데이터의 수와 데이터베이스의 총 데이터 수가 표시됩니다.
+### 1. CLI (명령줄 인터페이스)
 
+`typer`로 구현된 CLI를 통해 문서를 처리하거나 질문할 수 있습니다.
+
+#### 문서 처리 (Ingest)
+
+`ingest` 명령어를 사용하여 PDF 문서를 데이터베이스에 추가합니다.
 ```bash
 python main.py ingest "path/to/your/document.pdf"
 ```
 
--   `--workers` 옵션을 사용하여 동시에 처리할 스레드 수를 조절할 수 있습니다. (기본값: 50)
-    ```bash
-    python main.py ingest "path/to/your/document.pdf" --workers 10
-    ```
-
-#### Ingest 실행 예시
-```
-$ python main.py ingest "tests/assets/test_document.pdf"
-
-'test_document.pdf' 파일 처리를 시작합니다... (Workers: 50)
-...
-Chroma 벡터 스토어 준비 완료. (현재 데이터: 0개)
-...
-문서 처리 중: 100%|████████████████████████████| 3/3 [00:25<00:00,  8.50s/page]
-
-'test_document.pdf' 파일 처리가 완료되었습니다.
-성공: 3 페이지, 스킵: 0 페이지, 실패: 0 페이지
-이번 작업으로 17개 데이터 추가 완료. 현재 총 데이터: 17개
-...
-```
-
-### 2. 질의응답 (QA)
+#### 질의응답 (QA)
 
 `qa` 명령어를 사용하여 데이터베이스에 저장된 문서에 대해 질문합니다.
-
 ```bash
 python main.py qa "원점 복귀 방식에는 어떤 종류가 있나요?"
 ```
 
-#### QA 실행 예시
+### 2. API (FastAPI)
 
+`fastapi`로 구현된 API 서버를 실행하여 HTTP를 통해 RAG 파이프라인을 사용할 수 있습니다.
+
+#### API 서버 실행
+
+Uvicorn을 사용하여 API 서버를 시작합니다.
+```bash
+uvicorn src.api.main:app --reload
 ```
-$ python main.py qa "JOG 운전 속도를 설정하는 파라미터는 무엇인가요?"
+서버가 실행되면 브라우저에서 `http://127.0.0.1:8000/docs` 로 접속하여 API 문서를 확인할 수 있습니다.
 
-질문: 'JOG 운전 속도를 설정하는 파라미터는 무엇인가요?'
-Retriever를 준비 중입니다...
-Retriever 준비 완료. 답변을 생성합니다...
-
----
-답변:
-JOG 운전 속도를 설정하는 파라미터는 Pr.7 "JOG 속도"입니다. 이 파라미터는 JOG 운전 시의 위치결정 속도를 설정하며, 단위는 [mm/min], [inch/min], [deg/min] 또는 [pulse]이고 설정 범위는 1~2000000000 입니다.
-
-관련 이미지:
-- assets/images/your_document_name/page_123.png
----
-```
 
 ## 📂 프로젝트 구조
 
 ```
 /
-├───.gitignore
-├───main.py                 # CLI 애플리케이션 진입점
-├───requirements.txt        # Python 의존성 목록
-├───To_do_list.md           # 개발 작업 목록
-├───assets/images/          # 문서별 썸네일 이미지 저장 (예: .../문서명/page_001.png)
+├───main.py                 # Typer CLI 애플리케이션 진입점
+├───pyproject.toml          # Poetry 의존성 및 프로젝트 설정
+├───.env                    # 환경 변수 파일 (API 키 등)
+├───assets/images/          # 문서 페이지별 썸네일 이미지 저장
 ├───chroma_db/              # ChromaDB 벡터 데이터베이스
-├───data/                   # 생성된 BM25 인덱스 등
-└───src/
-    ├───parsing/
-    │   ├───parser.py       # Gemini를 이용한 멀티모달 파서
-    │   └───schema.py       # 파싱 데이터 구조(Pydantic 모델)
-    ├───preprocessing/
-    │   ├───loader.py       # PDF 문서 로더
-    │   └───thumbnail.py    # 페이지 썸네일 생성기
-    ├───retrieval/
-    │   ├───generator.py    # RAG 답변 및 인용 생성
-    │   ├───query_expansion.py # 쿼리 확장 모듈
-    │   └───retriever.py    # 하이브리드 검색기(EnsembleRetriever)
-    └───storage/
-        └───vector_db.py    # ChromaDB 인터페이스
+├───data/                   # BM25 인덱스 등
+├───src/
+│   ├───config.py           # Pydantic을 이용한 중앙 설정 관리
+│   ├───api/                # FastAPI 애플리케이션
+│   │   ├───main.py         # API 서버 진입점
+│   │   ├───routes.py       # API 라우트 정의
+│   │   └───schemas.py      # API 요청/응답 스키마
+│   └───rag_pipeline/       # 핵심 RAG 파이프라인 모듈
+│       ├───generator.py    # 답변 생성 모듈
+│       ├───loader.py       # 문서 로더
+│       ├───parser.py       # 멀티모달 파서
+│       ├───query_expansion.py # 쿼리 확장 모듈
+│       ├───retriever.py    # 하이브리드 검색기
+│       ├───schema.py       # 데이터 구조 (Pydantic 모델)
+│       ├───thumbnail.py    # 썸네일 생성기
+│       └───vector_db.py    # ChromaDB 인터페이스
+└───tests/                  # 테스트 코드
 ```
 
