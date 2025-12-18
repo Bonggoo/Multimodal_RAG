@@ -54,7 +54,7 @@ def get_retriever(
 ) -> BaseRetriever:
     """
     LangChain Chroma 벡터 스토어와 BM25를 결합한 EnsembleRetriever를 반환합니다.
-    BM25 인덱스는 로컬 파일에 캐싱하여 성능을 최적화합니다.
+    BM25 인덱스는 로컬 파일에 캐싱하며, 문서 ID 집합을 비교하여 불필요한 재생성을 방지합니다.
     """
     vector_store = get_vector_store(collection_name=collection_name, db_path=db_path)
     
@@ -65,20 +65,22 @@ def get_retriever(
 
     bm25_retriever = None
 
-    # 1. 캐시된 BM25 인덱스 로드 시도
+    # 1. 캐시된 BM25 인덱스 로드 시도 (force_update가 아닐 때)
     if not force_update and BM25_INDEX_PATH.exists():
         try:
             with open(BM25_INDEX_PATH, "rb") as f:
                 bm25_retriever = pickle.load(f)
-            # k 값 업데이트 (저장된 k 값과 다를 수 있으므로)
             bm25_retriever.k = search_kwargs.get("k", 20)
         except Exception as e:
             print(f"BM25 인덱스 로드 실패 (재생성 진행): {e}")
 
-    # 2. 인덱스가 없거나 강제 업데이트인 경우 재생성
+    # 2. 인덱스가 없거나 강제 업데이트인 경우 재생성 로직
     if bm25_retriever is None:
-        # 모든 문서 가져오기
-        collection_data = vector_store.get()
+        print("BM25 인덱스 재/생성 절차를 시작합니다.")
+        
+        # 모든 문서 가져오기 (Source of Truth)
+        collection_data = vector_store.get(include=["metadatas", "documents"])
+        ids = collection_data.get("ids", [])
         texts = collection_data.get("documents", [])
         metadatas = collection_data.get("metadatas", [])
         
@@ -86,17 +88,40 @@ def get_retriever(
         if not texts:
             return vector_retriever
 
-        # LangChain Document 객체 리스트로 변환
-        documents = [Document(page_content=text, metadata=metadata) for text, metadata in zip(texts, metadatas)]
+        # (최적화) 기존 인덱스가 있고, 문서 ID 집합이 동일하면 재생성 스킵
+        if BM25_INDEX_PATH.exists():
+            try:
+                with open(BM25_INDEX_PATH, "rb") as f:
+                    cached_retriever = pickle.load(f)
+                
+                # 'doc_id'가 메타데이터에 있는지 확인하고 ID 집합 생성
+                cached_ids = {doc.metadata['doc_id'] for doc in cached_retriever.docs if 'doc_id' in doc.metadata}
+                current_ids = set(ids)
+                
+                if cached_ids == current_ids:
+                    print(f"BM25 인덱스가 이미 최신 상태입니다. ({len(current_ids)}개 문서) 생성을 건너뜁니다.")
+                    bm25_retriever = cached_retriever
+                    bm25_retriever.k = search_kwargs.get("k", 20)
+                else:
+                    print("문서 변경이 감지되어 BM25 인덱스를 재생성합니다.")
+            except Exception as e:
+                print(f"캐시된 BM25 인덱스 비교 중 오류 발생 (재생성 진행): {e}")
 
-        print("BM25 인덱스 생성을 시작합니다 (데이터 양에 따라 시간이 소요될 수 있습니다)...")
+    # 3. 최종적으로 BM25 리트리버가 없으면 생성
+    if bm25_retriever is None:
+        # LangChain Document 객체 리스트로 변환 (doc_id를 메타데이터에 포함)
+        documents = [
+            Document(page_content=texts[i], metadata={**metadatas[i], "doc_id": ids[i]}) 
+            for i in range(len(ids))
+        ]
+
+        print(f"BM25 인덱스 생성을 시작합니다 ({len(documents)}개 문서)...")
         
         # BM25 Retriever 초기화 (전역 토크나이저 사용)
         bm25_retriever = BM25Retriever.from_documents(
             documents=tqdm(documents, desc="BM25 인덱싱"),
             preprocess_func=BM25_PREPROCESS_FUNC
         )
-        
         bm25_retriever.k = search_kwargs.get("k", 20)
         
         # 인덱스 저장

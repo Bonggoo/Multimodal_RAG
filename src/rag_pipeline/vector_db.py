@@ -86,7 +86,7 @@ def create_documents_from_page_content(page_content: PageContent, page_num: int,
 
 def add_page_content_to_vector_db(page_content: PageContent, page_num: int, thumbnail_path: str, vector_store: Chroma):
     """
-    파싱된 PageContent를 Document 리스트로 변환하고 벡터 스토어에 추가합니다.
+    파싱된 PageContent를 Document 리스트로 변환하고, 각 Document에 고유 ID를 부여하여 벡터 스토어에 추가합니다.
     """
     documents = create_documents_from_page_content(page_content, page_num, thumbnail_path)
     
@@ -94,5 +94,10 @@ def add_page_content_to_vector_db(page_content: PageContent, page_num: int, thum
         return
 
     doc_name = os.path.basename(thumbnail_path).split('_page_')[0]
-    ids = [f"{doc_name}_{page_num}_{i}" for i in range(len(documents))]
+    ids = [f"{doc_name}_p{page_num}_chunk_{i}" for i in range(len(documents))]
+
+    # 각 문서의 메타데이터에 'doc_id' 추가
+    for i, doc in enumerate(documents):
+        doc.metadata["doc_id"] = ids[i]
+
     vector_store.add_documents(documents=documents, ids=ids)
