@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any
 
 class QARequest(BaseModel):
     query: str
@@ -9,8 +9,12 @@ class QAResponse(BaseModel):
     image_paths: List[str]
     expanded_query: Optional[str] = None
 
-class IngestResponse(BaseModel):
-    filename: str
-    total_pages: int
-    status: str
+class AsyncIngestResponse(BaseModel):
+    job_id: str
     message: str
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    message: Optional[str] = None
+    details: Optional[dict[str, Any]] = None

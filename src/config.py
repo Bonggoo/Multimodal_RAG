@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     
     # 필수 설정 (환경 변수에 없으면 오류 발생)
     GOOGLE_API_KEY: SecretStr = Field(..., description="Google Generative AI API 키")
+    BACKEND_API_KEY: SecretStr = Field("FASTAPI_SECRET_KEY", description="백엔드 API 보호용 키")
 
     # 모델 설정
     GEMINI_MODEL: str = Field("gemini-2.5-flash-lite", description="사용할 Gemini 모델 이름")

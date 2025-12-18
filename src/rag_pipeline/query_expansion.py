@@ -2,10 +2,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import StrOutputParser
 import os
+import time
 from dotenv import load_dotenv
 
 class QueryExpander:
-    def __init__(self, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, model_name: str = "gemini-2.5-flash-lite"):
         load_dotenv()
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
@@ -26,9 +27,27 @@ class QueryExpander:
         ])
         
         self.chain = self.prompt | self.llm | StrOutputParser()
+        self.cache = {}
 
     def expand(self, query: str) -> str:
         """
-        사용자 쿼리를 확장하여 반환합니다.
+        사용자 쿼리를 확장하여 반환합니다. (캐싱 적용)
         """
-        return self.chain.invoke({"query": query})
+        # 1. 캐시 확인
+        if query in self.cache:
+            print(f"Query expansion cache hit for: '{query}'")
+            return self.cache[query]
+
+        # 2. 캐시 미스 시, LLM 호출
+        print(f"Query expansion cache miss for: '{query}'. Calling LLM...")
+        expansion_start_time = time.time()
+        
+        expanded_query = self.chain.invoke({"query": query})
+        
+        expansion_time = time.time() - expansion_start_time
+        print(f"LLM call for query expansion took: {expansion_time:.4f}s")
+
+        # 3. 결과 캐싱
+        self.cache[query] = expanded_query
+        
+        return expanded_query

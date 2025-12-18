@@ -4,7 +4,10 @@ version = "0.0.1"
 description = "A multimodal RAG project"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-packages = [{include = "multimodal_rag", from = "src"}]
+packages = [
+    {include = "api", from = "src"},
+    {include = "rag_pipeline", from = "src"}
+]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13" # konlpy가 3.13 이상을 지원하지 않을 수 있음
@@ -27,6 +30,7 @@ pydantic-settings = "^2.12.0"
 fastapi = "^0.124.4"
 uvicorn = "^0.38.0"
 python-multipart = "^0.0.20"
+websocket-client = "^1.9.0"
 
 
 [tool.poetry.group.dev.dependencies]
