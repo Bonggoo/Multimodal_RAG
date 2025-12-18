@@ -70,7 +70,7 @@ graph TD
 -   **`parser.py`**: `Gemini Pro` 멀티모달 모델과 `with_structured_output`을 사용하여 각 페이지에서 텍스트, 테이블, 이미지를 분석하고 구조화된 `PageContent` 객체로 변환합니다.
 -   **`schema.py`**: 파이프라인 전체에서 사용되는 데이터 구조를 Pydantic 모델로 정의합니다. (예: `PageContent`)
 -   **`vector_db.py`**: `Chroma`와 `GoogleGenerativeAIEmbeddings`를 사용하여 파싱된 데이터를 벡터로 변환하고 DB에 저장/검색하는 인터페이스를 제공합니다.
--   **`retriever.py`**: `EnsembleRetriever`를 사용하여 BM25(키워드 기반) 검색과 벡터(의미 기반) 검색을 결합한 하이브리드 검색을 수행합니다.
+-   **`retriever.py`**: `EnsembleRetriever`를 사용하여 BM25(키워드 기반) 검색과 벡터(의미 기반) 검색을 결합한 하이브리드 검색을 수행합니다. 또한, 문서 ID 집합을 비교하여 BM25 인덱스가 변경되었을 때만 재생성하도록 최적화되어 있습니다.
 -   **`query_expansion.py`**: LLM을 사용하여 사용자 질문을 검색에 유리한 여러 하위 질문으로 확장합니다.
 -   **`generator.py`**: LangChain Expression Language (LCEL)을 사용하여 검색된 컨텍스트를 바탕으로 최종 답변을 생성하는 RAG 체인을 구성합니다. (일반 및 스트리밍 답변 포함)
 
