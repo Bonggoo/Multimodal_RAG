@@ -18,3 +18,11 @@ class JobStatusResponse(BaseModel):
     status: str
     message: Optional[str] = None
     details: Optional[dict[str, Any]] = None
+
+class DocumentListResponse(BaseModel):
+    documents: List[str]
+
+class DeleteDocumentResponse(BaseModel):
+    message: str
+    deleted_db_entries: int
+    thumbnail_deleted: bool

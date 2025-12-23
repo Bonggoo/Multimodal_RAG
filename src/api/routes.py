@@ -5,10 +5,11 @@ import uuid
 from pathlib import Path
 from typing import List, Dict, Any
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse
 
-from src.api.schemas import QARequest, QAResponse, AsyncIngestResponse, JobStatusResponse
+from src.api.schemas import QARequest, QAResponse, AsyncIngestResponse, JobStatusResponse, DocumentListResponse, DeleteDocumentResponse
+from src.api.services import get_indexed_documents, delete_document
 from src.rag_pipeline.loader import load_pdf_as_documents
 from src.rag_pipeline.thumbnail import create_thumbnails
 from src.rag_pipeline.parser import parse_page_multimodal
@@ -16,9 +17,13 @@ from src.rag_pipeline.vector_db import get_vector_store, add_page_content_to_vec
 from src.rag_pipeline.retriever import get_retriever
 from src.rag_pipeline.generator import generate_answer_with_rag, generate_answer_with_rag_streaming
 from src.api.security import verify_api_key
+from src.config import settings
 import fitz
 
+# HTTP 엔드포인트용 라우터 (API 키 인증 필요)
 router = APIRouter(dependencies=[Depends(verify_api_key)])
+# WebSocket 엔드포인트용 라우터 (별도 인증)
+ws_router = APIRouter()
 
 # --- Background Task ---
 
@@ -182,8 +187,34 @@ async def get_ingest_status(request: Request, job_id: str):
     return JobStatusResponse(**status)
 
 
+@router.get("/documents", response_model=DocumentListResponse)
+async def list_documents():
+    """
+    RAG 시스템에 현재 인덱싱된 모든 문서의 목록을 반환합니다.
+    """
+    try:
+        doc_names = get_indexed_documents()
+        return DocumentListResponse(documents=doc_names)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"문서 목록을 가져오는 중 오류 발생: {e}")
+
+
+@router.delete("/documents/{doc_name}", response_model=DeleteDocumentResponse)
+async def delete_document_endpoint(request: Request, doc_name: str):
+    """
+    지정된 문서를 RAG 시스템에서 삭제합니다.
+    """
+    try:
+        result = delete_document(doc_name, request.app.state)
+        return DeleteDocumentResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"문서 삭제 중 오류 발생: {e}")
+
+
 @router.post("/qa", response_model=QAResponse)
-async def ask_question(request: Request):
+async def ask_question(request: Request, qa_request: QARequest):
     """
     RAG 파이프라인을 통해 질문에 대한 답변을 생성합니다. (메모리 캐시된 리트리버와 쿼리 확장기 사용)
     """
@@ -193,7 +224,7 @@ async def ask_question(request: Request):
         if retriever is None or query_expander is None:
             raise HTTPException(status_code=503, detail="Retriever or Query Expander is not available.")
 
-        result = generate_answer_with_rag(request.query, retriever, query_expander)
+        result = generate_answer_with_rag(qa_request.query, retriever, query_expander)
         
         return QAResponse(
             answer=result["answer"],
@@ -203,11 +234,16 @@ async def ask_question(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"답변 생성 중 오류 발생: {e}")
 
-@router.websocket("/ws/qa")
-async def websocket_qa(websocket: WebSocket):
+@ws_router.websocket("/ws/qa")
+async def websocket_qa(websocket: WebSocket, token: str = Query(None)):
     """
-    WebSocket을 통해 실시간으로 RAG 파이프라인에 질문하고 스트리밍 답변을 받습니다. (메모리 캐시된 리트리버와 쿼리 확장기 사용)
+    WebSocket을 통해 실시간으로 RAG 파이프라인에 질문하고 스트리밍 답변을 받습니다.
+    'token' 쿼리 파라미터로 API 키 인증을 수행합니다.
     """
+    if not token or token != settings.BACKEND_API_KEY.get_secret_value():
+        await websocket.close(code=1008, reason="Invalid API Key")
+        return
+        
     await websocket.accept()
     retriever = websocket.app.state.retriever
     query_expander = websocket.app.state.query_expander

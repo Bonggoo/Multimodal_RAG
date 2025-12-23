@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-from src.api.routes import router as api_router
+from fastapi.middleware.cors import CORSMiddleware
+from src.api.routes import router as api_router, ws_router
 from src.rag_pipeline.retriever import get_retriever
 from src.rag_pipeline.query_expansion import QueryExpander
 from src.config import settings
@@ -8,6 +9,20 @@ app = FastAPI(
     title="Multimodal RAG API",
     description="PDF 문서를 업로드하고 내용을 질문할 수 있는 멀티모달 RAG API입니다.",
     version="1.0.0"
+)
+
+# CORS 미들웨어 추가
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.on_event("startup")
@@ -28,6 +43,7 @@ async def startup_event():
 app.state.job_status = {}
 
 app.include_router(api_router)
+app.include_router(ws_router)
 
 @app.get("/")
 async def root():

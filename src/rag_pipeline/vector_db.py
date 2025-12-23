@@ -48,7 +48,7 @@ def create_documents_from_page_content(page_content: PageContent, page_num: int,
     base_metadata = {
         "page": page_num,
         "image_path": thumbnail_path,
-        "doc_name": os.path.basename(thumbnail_path).split('_page_')[0],
+        "doc_name": os.path.basename(os.path.dirname(thumbnail_path)), # 올바른 문서 이름 추출
         "chapter_path": page_content.chapter_path,
         "keywords": ", ".join(page_content.keywords) if page_content.keywords else "",
         "summary": page_content.summary if page_content.summary else "",
@@ -93,7 +93,8 @@ def add_page_content_to_vector_db(page_content: PageContent, page_num: int, thum
     if not documents:
         return
 
-    doc_name = os.path.basename(thumbnail_path).split('_page_')[0]
+    # 문서 이름은 이미 메타데이터에 있으므로 첫 번째 문서에서 가져옵니다.
+    doc_name = documents[0].metadata.get("doc_name", "unknown_doc")
     ids = [f"{doc_name}_p{page_num}_chunk_{i}" for i in range(len(documents))]
 
     # 각 문서의 메타데이터에 'doc_id' 추가
