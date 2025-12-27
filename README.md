@@ -22,12 +22,15 @@ API 서버를 중심으로 사용자와 핵심 RAG 파이프라인이 상호작�
 ```mermaid
 graph TD
     subgraph "사용자 인터페이스"
-        UI_HTTP["HTTP 클라이언트<br>(웹 앱, curl 등)"]
-        UI_WS["WebSocket 클라이언트<br>(실시간 웹 앱 등)"]
+        UI_HTTP["HTTP 클라이언트
+(웹 앱, curl 등)"]
+        UI_WS["WebSocket 클라이언트
+(실시간 웹 앱 등)"]
     end
 
     subgraph "진입점: FastAPI 서버"
-        D[FastAPI 서버<br>(src/api/main.py)]
+        D["FastAPI 서버
+(src/api/main.py)"]
     end
 
     subgraph "핵심 파이프라인 (src/rag_pipeline)"
@@ -35,11 +38,13 @@ graph TD
     end
     
     subgraph "데이터 저장소"
-        DS["벡터 DB (Chroma)<br>BM25 인덱스"]
+        DS["벡터 DB (Chroma)
+BM25 인덱스"]
     end
 
     L["최종 답변"]
-    M["작업 상태 DB<br>(In-Memory)"]
+    M["작업 상태 DB
+(In-Memory)"]
 
     UI_HTTP -- "POST /ingest (비동기)" --> D
     UI_HTTP -- "GET /ingest/status/{job_id}" --> D
