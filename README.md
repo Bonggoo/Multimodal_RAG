@@ -2,7 +2,7 @@
 
 ## 📖 프로젝트 개요 (Overview)
 
-본 프로젝트는 복잡한 기술 매뉴얼(PDF 형식)을 위한 **API 중심의 고급 멀티모달 RAG(Retrieval-Augmented Generation) 시스템**입니다. Google Gemini Pro 멀티모달 모델을 활용하여 텍스트뿐만 아니라 문서 내의 이미지, 테이블까지 깊이 이해하고, 이를 바탕으로 사용자의 질문에 정확하게 답변하는 FastAPI 기반의 웹 서비스를 제공합니다.
+본 프로젝트는 복잡한 기술 매뉴얼(PDF 형식)을 위한 **API 중심의 고급 멀티모달 RAG(Retrieval-Augmented Generation) 시스템**입니다. Google Gemini 멀티모달 모델을 활용하여 텍스트뿐만 아니라 문서 내의 이미지, 테이블까지 깊이 이해하고, 이를 바탕으로 사용자의 질문에 정확하게 답변하는 FastAPI 기반의 웹 서비스를 제공합니다.
 
 ## ✨ 주요 기능 (Key Features)
 
