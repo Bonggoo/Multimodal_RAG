@@ -1,0 +1,22 @@
+[
+    {
+        "question": "QD77MS16 모듈의 1축당 대기 시간은 얼마인가요?",
+        "ground_truth": "0.88ms"
+    },
+    {
+        "question": "외부 입력 신호(상한/하한 리미트 등)에 사용하는 정격 전압은 몇 V인가요?",
+        "ground_truth": "DC24V"
+    },
+    {
+        "question": "QD77MS 모듈이 장착 가능한 베이스 유닛의 종류는 무엇인가요?",
+        "ground_truth": "Q3□B, Q3□DB, Q6□B"
+    },
+    {
+        "question": "HPPF-12 모델의 M4 나사 조임 토크 값은 얼마인가요?",
+        "ground_truth": "0.63 N·m"
+    },
+    {
+        "question": "QD77MS 모델에서 지원하는 최대 제어 축 수는?",
+        "ground_truth": "QD77MS16 모델의 경우 최대 16축까지 제어할 수 있습니다."
+    }
+]

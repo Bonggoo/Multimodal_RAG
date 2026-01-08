@@ -1,4 +1,5 @@
 import os
+import asyncio
 import base64
 import time
 from typing import Optional
@@ -26,10 +27,11 @@ Output Schema:
   ],
   "chapter_path": "Chapter/Section hierarchy (e.g., '3.1.2 Advanced Topics') or null.",
   "keywords": ["List of key technical terms, concepts, model names, acronyms."],
-  "summary": "Concise 1-2 sentence page summary."
+  "summary": "Concise 1-2 sentence page summary.",
+  "document_title": "Title of the document extracted from the cover page or header. Null if not found."
 }
 
-Return only valid JSON. Ensure accurate technical keywords and meaningful summary.
+Return only valid JSON. Ensure accurate technical keywords, meaningful summary, and correct document title if present.
 """
 
 def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3) -> Optional[PageContent]:
@@ -87,3 +89,16 @@ def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3) -> Option
 
     print("Failed to parse page after multiple attempts.")
     return None
+
+async def parse_page_multimodal_async(
+    pdf_page_bytes: bytes, 
+    semaphore: asyncio.Semaphore,
+    max_retries: int = 3
+) -> Optional[PageContent]:
+    """
+    Parses a single PDF page using a multimodal Gemini model asynchronously.
+    Uses asyncio.to_thread to run the synchronous parser in a thread, bypassing potential async DNS issues.
+    """
+    async with semaphore:
+        # Use existing sync function in a separate thread
+        return await asyncio.to_thread(parse_page_multimodal, pdf_page_bytes, max_retries)

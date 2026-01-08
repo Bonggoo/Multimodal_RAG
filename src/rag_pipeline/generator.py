@@ -11,6 +11,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 from src.rag_pipeline.query_expansion import QueryExpander
 from src.config import settings
+from src.rag_pipeline.vector_db import get_vector_store
+from src.api.schemas import QAFilters
 
 def format_docs(docs: List[Any]) -> str:
     """
@@ -73,7 +75,7 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     )
     return rag_chain
 
-def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expander: QueryExpander) -> Dict[str, Any]:
+def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expander: QueryExpander, filters: QAFilters = None) -> Dict[str, Any]:
     """
     RAG 체인을 사용하여 사용자 질문에 답변을 생성하고,
     답변에 실제 인용된 이미지 경로만 추출하여 반환합니다.
@@ -90,7 +92,16 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     expanded_query = query_expander.expand(query)
     
     # 2. 확장된 쿼리로 문서 검색
-    docs = retriever.invoke(expanded_query)
+    if filters and filters.doc_name:
+        print(f"Applying filters: {filters}")
+        # 필터가 있으면 앙상블 리트리버 대신 필터링된 벡터 검색 사용
+        vector_store = get_vector_store()
+        filtered_retriever = vector_store.as_retriever(
+            search_kwargs={'filter': {'doc_name': filters.doc_name}, 'k': 40}
+        )
+        docs = filtered_retriever.invoke(expanded_query)
+    else:
+        docs = retriever.invoke(expanded_query)
     context_text = format_docs(docs)
 
     # 3. 답변 생성 (원본 질문 + 검색된 컨텍스트)
@@ -150,7 +161,7 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
         "expanded_query": expanded_query
     }
 
-async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetriever, query_expander: QueryExpander) -> AsyncIterator[Dict[str, Any]]:
+async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetriever, query_expander: QueryExpander, filters: QAFilters = None) -> AsyncIterator[Dict[str, Any]]:
     """
     RAG 체인을 사용하여 사용자 질문에 대한 답변을 스트리밍하고,
     마지막에 인용된 이미지 경로를 반환합니다. (성능 로깅 포함)
@@ -166,7 +177,15 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
 
     # 2. 확장된 쿼리로 문서 검색
     retrieval_start_time = time.time()
-    docs = retriever.invoke(expanded_query)
+    if filters and filters.doc_name:
+        print(f"Applying filters: {filters}")
+        vector_store = get_vector_store()
+        filtered_retriever = vector_store.as_retriever(
+            search_kwargs={'filter': {'doc_name': filters.doc_name}, 'k': 40}
+        )
+        docs = filtered_retriever.invoke(expanded_query)
+    else:
+        docs = retriever.invoke(expanded_query)
     retrieval_time = time.time() - retrieval_start_time
     print(f"[2] Document Retrieval Time: {retrieval_time:.4f}s")
 

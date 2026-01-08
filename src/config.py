@@ -13,7 +13,9 @@ class Settings(BaseSettings):
 
     # 모델 설정
     GEMINI_MODEL: str = Field("gemini-2.5-flash-lite", description="사용할 Gemini 모델 이름")
-    EMBEDDING_MODEL: str = Field("models/text-embedding-004", description="임베딩 모델 이름")
+    GEMINI_EVAL_MODEL: str = Field("gemini-2.5-flash-lite", description="평가(Ragas)에 사용할 심판(Judge) 용 Gemini 모델")
+    EMBEDDING_MODEL: str = Field("jhgan/ko-sroberta-multitask", description="임베딩 모델 이름 (HuggingFace)")
+    EMBEDDING_DEVICE: str = Field("mps", description="임베딩 모델 실행 디바이스 (cuda, mps, cpu)")
 
     # 데이터베이스 및 스토리지 설정
     CHROMA_DB_DIR: str = Field("chroma_db", description="ChromaDB 데이터 저장 경로")

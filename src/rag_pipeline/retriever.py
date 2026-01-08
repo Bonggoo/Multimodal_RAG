@@ -48,7 +48,7 @@ BM25_INDEX_PATH = Path(settings.BM25_INDEX_PATH)
 def get_retriever(
     collection_name: str = settings.COLLECTION_NAME,
     db_path: str = settings.CHROMA_DB_DIR,
-    search_kwargs: Dict[str, Any] = {"k": 20},
+    search_kwargs: Dict[str, Any] = {"k": 40},
     ensemble_weights: List[float] = [0.5, 0.5],
     force_update: bool = False
 ) -> BaseRetriever:

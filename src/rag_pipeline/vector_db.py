@@ -1,9 +1,10 @@
 import os
 from typing import List
 
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from src.rag_pipeline.schema import PageContent
 from src.config import settings
@@ -16,9 +17,10 @@ def get_embedding_function():
     """Google Generative AI 임베딩 함수를 반환합니다. (캐싱 사용)"""
     global _embedding_function
     if _embedding_function is None:
-        _embedding_function = GoogleGenerativeAIEmbeddings(
-            model=settings.EMBEDDING_MODEL,
-            google_api_key=settings.GOOGLE_API_KEY.get_secret_value()
+        _embedding_function = HuggingFaceEmbeddings(
+            model_name=settings.EMBEDDING_MODEL,
+            model_kwargs={'device': settings.EMBEDDING_DEVICE},
+            encode_kwargs={'normalize_embeddings': True} 
         )
     return _embedding_function
 
@@ -36,7 +38,7 @@ def get_vector_store(
         )
     return _vector_store
 
-def create_documents_from_page_content(page_content: PageContent, page_num: int, thumbnail_path: str) -> List[Document]:
+def create_documents_from_page_content(page_content: PageContent, page_num: int, thumbnail_path: str, document_title: str = None) -> List[Document]:
     """
     파싱된 PageContent 객체를 기반으로 LangChain Document 객체 리스트를 생성합니다.
     의미 기반 청킹(semantic chunking) 로직과 메타데이터 보강이 포함되어 있습니다.
@@ -52,19 +54,32 @@ def create_documents_from_page_content(page_content: PageContent, page_num: int,
         "chapter_path": page_content.chapter_path,
         "keywords": ", ".join(page_content.keywords) if page_content.keywords else "",
         "summary": page_content.summary if page_content.summary else "",
+        "title": document_title if document_title else "",
     }
 
-    # 1. 텍스트 콘텐츠 추가
+    # 1. 텍스트 콘텐츠 추가 (Advanced Chunking 적용)
     if page_content.text and len(page_content.text.strip()) > 10:
-        documents.append(Document(
-            page_content=page_content.text,
-            metadata={**base_metadata, "chunk_type": "text"}
-        ))
+        # RecursiveCharacterTextSplitter를 사용하여 텍스트를 의미 단위로 분할
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=800,      # 청크 크기 (한국어 고려하여 적절히 조절)
+            chunk_overlap=100,   # 중첩 크기 (문맥 유지)
+            separators=["\n\n", "\n", " ", ""], # 분할 우선순위
+            keep_separator=False
+        )
+        
+        # split_text가 아니라 create_documents를 사용하여 메타데이터를 함께 복제
+        split_docs = text_splitter.create_documents(
+            texts=[page_content.text], 
+            metadatas=[{**base_metadata, "chunk_type": "text"}]
+        )
+        documents.extend(split_docs)
 
     # 2. 테이블(Tables) 처리
     for i, table_str in enumerate(page_content.tables):
+        # 테이블 검색 성능 향상을 위해 메타데이터(키워드, 요약)를 콘텐츠에 포함
+        enriched_content = f"Context Keywords: {base_metadata['keywords']}\nSection Summary: {base_metadata['summary']}\n\n{table_str}"
         documents.append(Document(
-            page_content=table_str,
+            page_content=enriched_content,
             metadata={**base_metadata, "chunk_type": "table", "table_index": i}
         ))
             
@@ -84,11 +99,11 @@ def create_documents_from_page_content(page_content: PageContent, page_num: int,
     return documents
 
 
-def add_page_content_to_vector_db(page_content: PageContent, page_num: int, thumbnail_path: str, vector_store: Chroma):
+def add_page_content_to_vector_db(page_content: PageContent, page_num: int, thumbnail_path: str, vector_store: Chroma, document_title: str = None):
     """
     파싱된 PageContent를 Document 리스트로 변환하고, 각 Document에 고유 ID를 부여하여 벡터 스토어에 추가합니다.
     """
-    documents = create_documents_from_page_content(page_content, page_num, thumbnail_path)
+    documents = create_documents_from_page_content(page_content, page_num, thumbnail_path, document_title)
     
     if not documents:
         return

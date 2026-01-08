@@ -8,11 +8,14 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse
 
-from src.api.schemas import QARequest, QAResponse, AsyncIngestResponse, JobStatusResponse, DocumentListResponse, DeleteDocumentResponse
+from src.api.schemas import QARequest, QAResponse, AsyncIngestResponse, JobStatusResponse, DocumentListResponse, DeleteDocumentResponse, QAFilters, FeedbackRequest
 from src.api.services import get_indexed_documents, delete_document
+from src.api.logs import log_qa_history, log_feedback
+import asyncio
+import uuid
 from src.rag_pipeline.loader import load_pdf_as_documents
 from src.rag_pipeline.thumbnail import create_thumbnails
-from src.rag_pipeline.parser import parse_page_multimodal
+from src.rag_pipeline.parser import parse_page_multimodal_async
 from src.rag_pipeline.vector_db import get_vector_store, add_page_content_to_vector_db
 from src.rag_pipeline.retriever import get_retriever
 from src.rag_pipeline.generator import generate_answer_with_rag, generate_answer_with_rag_streaming
@@ -27,7 +30,7 @@ ws_router = APIRouter()
 
 # --- Background Task ---
 
-def process_document_background(
+async def process_document_background(
     job_id: str,
     file_path: str,
     filename: str,
@@ -35,10 +38,10 @@ def process_document_background(
     app_state: Any
 ):
     """
-    PDF 문서 처리 백그라운드 작업.
+    PDF 문서 처리 백그라운드 작업 (비동기 병렬 처리).
     완료 후에는 메모리에 캐시된 리트리버를 업데이트합니다. (성능 로깅 포함)
     """
-    print(f"\n--- Ingestion Pipeline Benchmark for {filename} ---")
+    print(f"\n--- Parallel Ingestion Pipeline Benchmark for {filename} ---")
     total_start_time = time.time()
     try:
         job_status_db[job_id] = {
@@ -66,34 +69,69 @@ def process_document_background(
         thumb_time = time.time() - thumb_start_time
         print(f"[2] Thumbnail Creation Time: {thumb_time:.4f}s")
 
-        # 3. 페이지별 처리 (파싱 및 벡터 저장)
+        # 3. 페이지별 처리 (비동기 병렬 파싱)
         page_processing_start_time = time.time()
-        success_count = 0
-        for i, page_doc in enumerate(pages):
+        
+        # 동시성 제어를 위한 세마포어 (50개 동시 처리)
+        semaphore = asyncio.Semaphore(50)
+        
+        tasks = []
+        page_data_list = [] # (page_num, bytes, thumbnail_path)
+
+        # 페이지 바이트 미리 추출 (fitz는 동기 함수이므로 미리 추출)
+        for i in range(total_pages):
             page_num = i + 1
-            try:
-                writer = fitz.open()
-                writer.insert_pdf(original_pdf_doc, from_page=i, to_page=i)
-                page_bytes = writer.write()
-                writer.close()
+            writer = fitz.open()
+            writer.insert_pdf(original_pdf_doc, from_page=i, to_page=i)
+            page_bytes = writer.write()
+            writer.close()
+            
+            page_thumbnail_path = next((p for p in thumbnail_paths if f"page_{page_num:03d}" in p), None)
+            if page_thumbnail_path:
+                page_data_list.append((page_num, page_bytes, page_thumbnail_path))
 
-                page_thumbnail_path = next((p for p in thumbnail_paths if f"page_{page_num:03d}" in p), None)
-                if not page_thumbnail_path:
-                    continue
+        processed_count = 0
 
-                parsed_content = parse_page_multimodal(page_bytes)
-                if parsed_content:
-                    add_page_content_to_vector_db(parsed_content, page_num, page_thumbnail_path, vector_store)
+        async def parse_and_track(p_num, p_bytes, p_thumb):
+            nonlocal processed_count
+            result = await parse_page_multimodal_async(p_bytes, semaphore)
+            
+            processed_count += 1
+            progress = round(processed_count / total_pages * 100)
+            # 상태 업데이트 (비동기 환경에서 dict 업데이트는 안전함)
+            job_status_db[job_id]["details"]["progress"] = progress
+            
+            return p_num, p_thumb, result
+
+        tasks = [parse_and_track(pn, pb, pt) for pn, pb, pt in page_data_list]
+        
+        # 모든 태스크 동시 실행
+        results = await asyncio.gather(*tasks)
+        
+        # 결과 처리: 문서 제목 추출 (타이틀은 보통 첫 페이지에 있으므로 첫 페이지 결과를 우선 확인)
+        extracted_title = None
+        # results는 (page_num, thumbnail_path, parsed_content) 튜플의 리스트
+        # page_num 기준으로 정렬 (병렬 처리로 순서가 섞였을 수 있음)
+        sorted_results = sorted(results, key=lambda x: x[0])
+        
+        for page_num, thumbnail_path, parsed_content in sorted_results:
+             if parsed_content and parsed_content.document_title:
+                 extracted_title = parsed_content.document_title
+                 print(f"Extracted Document Title: {extracted_title}")
+                 break
+        
+        # DB 저장 (추출된 타이틀을 모든 청크에 메타데이터로 적용)
+        success_count = 0
+        for page_num, thumbnail_path, parsed_content in results:
+            if parsed_content:
+                try:
+                    add_page_content_to_vector_db(parsed_content, page_num, thumbnail_path, vector_store, document_title=extracted_title)
                     success_count += 1
-                
-                progress = round((i + 1) / total_pages * 100)
-                job_status_db[job_id]["details"]["progress"] = progress
+                except Exception as e:
+                    print(f"Error adding page {page_num} to DB: {e}")
 
-            except Exception as e:
-                print(f"Error processing page {page_num} of {filename}: {e}")
-                continue
         page_processing_time = time.time() - page_processing_start_time
-        print(f"[3] All Pages Processing Time ({total_pages} pages): {page_processing_time:.4f}s")
+        print(f"[3] Parallel Pages Processing Time ({total_pages} pages): {page_processing_time:.4f}s")
 
         original_pdf_doc.close()
         
@@ -212,6 +250,16 @@ async def delete_document_endpoint(request: Request, doc_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문서 삭제 중 오류 발생: {e}")
 
+@router.post("/feedback")
+async def receive_feedback(feedback: FeedbackRequest):
+    """
+    사용자 피드백을 수신하여 로그에 저장합니다.
+    """
+    try:
+        log_feedback(feedback.trace_id, feedback.score, feedback.comment)
+        return {"status": "success", "message": "Feedback received"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": str(e)})
 
 @router.post("/qa", response_model=QAResponse)
 async def ask_question(request: Request, qa_request: QARequest):
@@ -224,12 +272,17 @@ async def ask_question(request: Request, qa_request: QARequest):
         if retriever is None or query_expander is None:
             raise HTTPException(status_code=503, detail="Retriever or Query Expander is not available.")
 
-        result = generate_answer_with_rag(qa_request.query, retriever, query_expander)
+        result = generate_answer_with_rag(qa_request.query, retriever, query_expander, qa_request.filters)
         
+        # Trace ID 생성 및 로그 기록
+        trace_id = uuid.uuid4()
+        log_qa_history(str(trace_id), qa_request.query, result["answer"], qa_request.filters.dict() if qa_request.filters else None)
+
         return QAResponse(
             answer=result["answer"],
-            image_paths=result["image_paths"],
-            expanded_query=result.get("expanded_query")
+            retrieved_images=result["image_paths"],
+            doc_name=qa_request.filters.doc_name if qa_request.filters else None,
+            trace_id=trace_id
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"답변 생성 중 오류 발생: {e}")
@@ -257,13 +310,15 @@ async def websocket_qa(websocket: WebSocket, token: str = Query(None)):
         while True:
             data = await websocket.receive_json()
             query = data.get("query")
+            filters_dict = data.get("filters")
+            filters = QAFilters(**filters_dict) if filters_dict else None
 
             if not query:
                 await websocket.send_json({"type": "error", "payload": "Query not provided"})
                 continue
 
             try:
-                async for chunk in generate_answer_with_rag_streaming(query, retriever, query_expander):
+                async for chunk in generate_answer_with_rag_streaming(query, retriever, query_expander, filters):
                     await websocket.send_json(chunk)
 
             except Exception as e:

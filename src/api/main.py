@@ -25,18 +25,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    애플리케이션 시작 시 RAG 리트리버와 Query Expander를 로드하여 메모리에 캐싱합니다.
-    """
-    print("Application startup: Loading RAG retriever...")
-    app.state.retriever = get_retriever()
-    print("RAG retriever loaded successfully.")
+# 애플리케이션 시작 시 RAG 리트리버와 Query Expander를 로드하여 메모리에 캐싱합니다.
+print("Loading RAG retriever...")
+app.state.retriever = get_retriever()
+print("RAG retriever loaded successfully.")
 
-    print("Application startup: Initializing Query Expander...")
-    app.state.query_expander = QueryExpander(model_name=settings.GEMINI_MODEL)
-    print("Query Expander initialized.")
+print("Initializing Query Expander...")
+app.state.query_expander = QueryExpander(model_name=settings.GEMINI_MODEL)
+print("Query Expander initialized.")
 
 # 비동기 작업 상태를 저장하기 위한 딕셔너리
 # 실제 프로덕션 환경에서는 Redis, DB 등을 사용하는 것이 좋습니다.

@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 from src.rag_pipeline.vector_db import get_vector_store
 from src.rag_pipeline.retriever import get_retriever
 
-def get_indexed_documents() -> List[str]:
+def get_indexed_documents() -> List[Dict[str, Any]]:
     """
     현재 벡터 스토어에 인덱싱된 모든 문서의 고유한 이름 목록을 반환합니다.
     """
@@ -16,9 +16,23 @@ def get_indexed_documents() -> List[str]:
     if not metadatas:
         return []
 
-    doc_names = {metadata.get("doc_name") for metadata in metadatas if metadata.get("doc_name")}
+    # doc_name을 키로 하고, title을 값으로 하는 딕셔너리 생성 (중복 제거)
+    docs_map = {}
+    for metadata in metadatas:
+        doc_name = metadata.get("doc_name")
+        title = metadata.get("title")
+        if doc_name:
+            # 이미 있는 문서라도 타이틀이 없으면(또는 빈 문자열이면) 현재 타이틀로 업데이트 (있는 경우 우선)
+            if doc_name not in docs_map or (not docs_map[doc_name] and title):
+                docs_map[doc_name] = title
+
+    # DocumentInfo 형태의 딕셔너리 리스트로 변환
+    document_list = [
+        {"filename": doc_name, "title": title} 
+        for doc_name, title in docs_map.items()
+    ]
     
-    return sorted(list(doc_names))
+    return sorted(document_list, key=lambda x: x["filename"])
 
 def delete_document(doc_name: str, app_state: Any) -> Dict[str, Any]:
     """

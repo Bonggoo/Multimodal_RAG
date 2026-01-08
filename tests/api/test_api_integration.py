@@ -86,6 +86,8 @@ class TestApiIntegration:
             json={"query": self.test_query}
         )
         
+        if response.status_code != 200:
+             print(f"QA Failed. Status: {response.status_code}, Body: {response.text}")
         assert response.status_code == 200
         data = response.json()
         print(f"HTTP QA Response: {data}")
