@@ -10,7 +10,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13" # konlpy가 3.13 이상을 지원하지 않을 수 있음
+python = ">=3.10,<3.14" # konlpy 및 주요 라이브러리의 3.13 지원 확인됨
 pymupdf = "*"
 google-generativeai = "*"
 chromadb = "*"

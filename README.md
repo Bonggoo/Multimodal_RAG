@@ -49,7 +49,7 @@ poetry install
 ```ini
 GOOGLE_API_KEY=your_gemini_api_key
 BACKEND_API_KEY=your_backend_secret_key
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-2.5-flash-lite
 EMBEDDING_DEVICE=cpu  # or mps, cuda
 ```
 
