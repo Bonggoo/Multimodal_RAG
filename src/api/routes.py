@@ -72,8 +72,8 @@ async def process_document_background(
         # 3. 페이지별 처리 (비동기 병렬 파싱)
         page_processing_start_time = time.time()
         
-        # 동시성 제어를 위한 세마포어 (50개 동시 처리)
-        semaphore = asyncio.Semaphore(50)
+        # 동시성 제어를 위한 세마포어 (150개 동시 처리로 상향)
+        semaphore = asyncio.Semaphore(150)
         
         tasks = []
         page_data_list = [] # (page_num, bytes, thumbnail_path)

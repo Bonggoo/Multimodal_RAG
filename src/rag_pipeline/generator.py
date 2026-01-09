@@ -91,17 +91,80 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     # 1. 쿼리 확장 (Query Expansion)
     expanded_query = query_expander.expand(query)
     
-    # 2. 확장된 쿼리로 문서 검색
+    # 2. 다중 쿼리 기반 문서 검색 (정제된 쿼리 + 확장 쿼리)
+    # 정제 로직: 고유 코드(예: E1236)가 있으면 해당 코드에 집중하도록 쿼리 생성
+    codes = re.findall(r'[A-Z]\d{3,4}', query.upper())
+    refined_query = " ".join(codes) if codes else query
+    
+    vector_store = get_vector_store()
+    
     if filters and filters.doc_name:
         print(f"Applying filters: {filters}")
-        # 필터가 있으면 앙상블 리트리버 대신 필터링된 벡터 검색 사용
-        vector_store = get_vector_store()
         filtered_retriever = vector_store.as_retriever(
-            search_kwargs={'filter': {'doc_name': filters.doc_name}, 'k': 40}
+            search_kwargs={'filter': {'doc_name': filters.doc_name}, 'k': 100}
         )
-        docs = filtered_retriever.invoke(expanded_query)
+        docs_orig = filtered_retriever.invoke(refined_query)
+        docs_exp = filtered_retriever.invoke(expanded_query)
+        docs_raw = filtered_retriever.invoke(query) if refined_query != query else []
     else:
-        docs = retriever.invoke(expanded_query)
+        docs_orig = retriever.invoke(refined_query)
+        docs_exp = retriever.invoke(expanded_query)
+        docs_raw = retriever.invoke(query) if refined_query != query else []
+    
+    # 모든 결과 병합 및 중복 제거
+    all_docs = docs_orig + docs_exp + docs_raw
+    seen_contents = set()
+    docs = []
+    for doc in all_docs:
+        if doc.page_content not in seen_contents:
+            docs.append(doc)
+            seen_contents.add(doc.page_content)
+    
+    # [추가] 상위 5개 페이지에 대해 자동으로 다음 페이지 컨텍스트 추가 (가로 펼침 표/연속 정보 대응)
+    extended_docs = []
+    processed_pages = set()
+    
+    # 상위 결과들 우선 유지
+    for doc in docs[:10]:
+        extended_docs.append(doc)
+        doc_name = doc.metadata.get("doc_name")
+        page_num = doc.metadata.get("page")
+        if doc_name and page_num:
+            processed_pages.add(f"{doc_name}_{page_num}")
+            
+            # 다음 페이지 후보군 탐색 (간단한 필터링 사용)
+            next_page_num = page_num + 1
+            if f"{doc_name}_{next_page_num}" not in processed_pages:
+                try:
+                    # 벡터 스토어에서 해당 페이지 직접 조회
+                    next_page_docs = vector_store.get(
+                        where={"$and": [{"doc_name": {"$eq": doc_name}}, {"page": {"$eq": int(next_page_num)}}]}
+                    )
+                    if next_page_docs and next_page_docs.get("documents"):
+                        from langchain_core.documents import Document
+                        for i, content in enumerate(next_page_docs["documents"]):
+                            # Document 객체 재구성
+                            new_doc = Document(
+                                page_content=content,
+                                metadata=next_page_docs["metadatas"][i]
+                            )
+                            if new_doc.page_content not in seen_contents:
+                                extended_docs.append(new_doc)
+                                seen_contents.add(new_doc.page_content)
+                        processed_pages.add(f"{doc_name}_{next_page_num}")
+                except Exception as e:
+                    print(f"Error fetching next page context: {e}")
+
+    # 나머지 중복되지 않은 문서들 추가
+    for doc in docs[10:]:
+        if doc.page_content not in seen_contents:
+            extended_docs.append(doc)
+            seen_contents.add(doc.page_content)
+    
+    docs = extended_docs
+    
+    # 최대 검색 결과 수 제한 (속도와 정확도의 균형을 위해 100개로 설정)
+    docs = docs[:100]
     context_text = format_docs(docs)
 
     # 3. 답변 생성 (원본 질문 + 검색된 컨텍스트)
@@ -111,10 +174,16 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     답변은 한국어로 작성하며, 기술적인 내용은 정확하게 전달해야 합니다.
     컨텍스트에 없는 내용은 지어내지 말고 모른다고 답변하세요.
 
-    각 컨텍스트 블록은 `[Image Source: ...]`로 시작합니다.
-    답변을 작성할 때 참고한 컨텍스트가 있다면, 해당 컨텍스트의 `Image Source` 경로를 기억해두세요.
+    ### 컨텍스트 읽기 지침:
+    1. 각 컨텍스트 블록은 `[Image Source: ...]`로 시작합니다.
+    2. 매뉴얼의 선택 항목(체크박스 등)은 `[V]` 또는 `[ ]`로 표시되어 있습니다.
+       - `[V]` 표시가 붙은 항목은 **선택/활성화된** 정보입니다.
+       - `[ ]` 표시가 붙은 항목은 **선택되지 않은** 정보이므로 무시하거나 언급하지 마세요.
+    3. 답변 작성 시 참고한 `Image Source` 경로를 기억해두세요.
     
-    답변의 맨 마지막에, 답변 작성에 실제로 참고한 모든 `Image Source` 경로를 다음 형식으로 나열해 주세요:
+    답변의 맨 마지막에, 참고한 모든 이미지 경로를 다음 형식으로 나열해 주세요.
+    **매우 중요**: 답변 작성에 조금이라도 근거가 된 모든 [Image Source]를 하나도 빠짐없이 나열하세요. 
+    내용이 여러 페이지에 걸쳐 있다면 해당 페이지의 경로를 모두 포함해야 합니다.
     [[Cited Images: 경로1, 경로2, ...]]
 
     만약 참고한 이미지가 없다면 `[[Cited Images: None]]`이라고 출력하세요.
@@ -147,8 +216,9 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     if match:
         images_str = match.group(1)
         if images_str.lower() != "none":
-            # 쉼표로 구분된 경로 추출 및 공백 제거
-            cited_images = [img.strip() for img in images_str.split(',')]
+            # 쉼표로 구분된 경로 추출, 공백 제거 및 중복 제거
+            raw_images = [img.strip() for img in images_str.split(',')]
+            cited_images = sorted(list(set(img for img in raw_images if img)))
         
         # 답변 텍스트에서 메타데이터 태그 제거 (깔끔하게 보여주기 위해)
         final_answer = full_response.replace(match.group(0), "").strip()
@@ -175,19 +245,78 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     expansion_time = time.time() - expansion_start_time
     print(f"[1] Query Expansion Time: {expansion_time:.4f}s")
 
-    # 2. 확장된 쿼리로 문서 검색
+    # 2. 다중 쿼리 기반 문서 검색 (정제된 쿼리 + 확장 쿼리)
     retrieval_start_time = time.time()
+    codes = re.findall(r'[A-Z]\d{3,4}', query.upper())
+    refined_query = " ".join(codes) if codes else query
+
+    vector_store = get_vector_store()
+
     if filters and filters.doc_name:
         print(f"Applying filters: {filters}")
-        vector_store = get_vector_store()
         filtered_retriever = vector_store.as_retriever(
-            search_kwargs={'filter': {'doc_name': filters.doc_name}, 'k': 40}
+            search_kwargs={'filter': {'doc_name': filters.doc_name}, 'k': 100}
         )
-        docs = filtered_retriever.invoke(expanded_query)
+        docs_orig = filtered_retriever.invoke(refined_query)
+        docs_exp = filtered_retriever.invoke(expanded_query)
+        docs_raw = filtered_retriever.invoke(query) if refined_query != query else []
     else:
-        docs = retriever.invoke(expanded_query)
+        docs_orig = retriever.invoke(refined_query)
+        docs_exp = retriever.invoke(expanded_query)
+        docs_raw = retriever.invoke(query) if refined_query != query else []
+    
+    # 결과 병합 및 중복 제거
+    all_docs = docs_orig + docs_exp + docs_raw
+    seen_contents = set()
+    docs = []
+    for doc in all_docs:
+        if doc.page_content not in seen_contents:
+            docs.append(doc)
+            seen_contents.add(doc.page_content)
+    
+    # [추가] 상위 5개 페이지에 대해 자동으로 다음 페이지 컨텍스트 추가 (가로 펼침 표/연속 정보 대응)
+    extended_docs = []
+    processed_pages = set()
+    
+    # 상위 결과들 우선 유지
+    for doc in docs[:10]:
+        extended_docs.append(doc)
+        doc_name = doc.metadata.get("doc_name")
+        page_num = doc.metadata.get("page")
+        if doc_name and page_num:
+            processed_pages.add(f"{doc_name}_{page_num}")
+            
+            # 다음 페이지 후보군 탐색
+            next_page_num = page_num + 1
+            if f"{doc_name}_{next_page_num}" not in processed_pages:
+                try:
+                    # 벡터 스토어에서 해당 페이지 직접 조회
+                    next_page_docs = vector_store.get(
+                        where={"$and": [{"doc_name": {"$eq": doc_name}}, {"page": {"$eq": int(next_page_num)}}]}
+                    )
+                    if next_page_docs and next_page_docs.get("documents"):
+                        from langchain_core.documents import Document
+                        for i, content in enumerate(next_page_docs["documents"]):
+                            new_doc = Document(
+                                page_content=content,
+                                metadata=next_page_docs["metadatas"][i]
+                            )
+                            if new_doc.page_content not in seen_contents:
+                                extended_docs.append(new_doc)
+                                seen_contents.add(new_doc.page_content)
+                        processed_pages.add(f"{doc_name}_{next_page_num}")
+                except Exception as e:
+                    print(f"Error fetching next page context: {e}")
+
+    # 나머지 중복되지 않은 문서들 추가
+    for doc in docs[10:]:
+        if doc.page_content not in seen_contents:
+            extended_docs.append(doc)
+            seen_contents.add(doc.page_content)
+    
+    docs = extended_docs[:100] # 최대 검색 결과 수 제한 (속도와 정확도의 균형을 위해 100개로 설정)
     retrieval_time = time.time() - retrieval_start_time
-    print(f"[2] Document Retrieval Time: {retrieval_time:.4f}s")
+    print(f"[2] Retrieval Time (including extensions): {retrieval_time:.4f}s")
 
     # 3. 컨텍스트 포맷팅
     format_start_time = time.time()
@@ -201,10 +330,14 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     답변은 한국어로 작성하며, 기술적인 내용은 정확하게 전달해야 합니다.
     컨텍스트에 없는 내용은 지어내지 말고 모른다고 답변하세요.
 
-    각 컨텍스트 블록은 `[Image Source: ...]`로 시작합니다.
-    답변을 작성할 때 참고한 컨텍스트가 있다면, 해당 컨텍스트의 `Image Source` 경로를 기억해두세요.
+    ### 컨텍스트 읽기 지침:
+    1. 각 컨텍스트 블록은 `[Image Source: ...]`로 시작합니다.
+    2. 매뉴얼의 선택 항목(체크박스 등)은 `[V]` 또는 `[ ]`로 표시되어 있습니다.
+       - `[V]` 표시가 붙은 항목은 **선택/활성화된** 정보입니다.
+       - `[ ]` 표시가 붙은 항목은 **선택되지 않은** 정보이므로 무시하거나 언급하지 마세요.
+    3. 답변 작성 시 참고한 `Image Source` 경로를 기억해두세요.
     
-    답변의 맨 마지막에, 답변 작성에 실제로 참고한 모든 `Image Source` 경로를 다음 형식으로 나열해 주세요:
+    답변의 맨 마지막에, 참고한 모든 이미지 경로를 다음 형식으로 나열해 주세요:
     [[Cited Images: 경로1, 경로2, ...]]
 
     만약 참고한 이미지가 없다면 `[[Cited Images: None]]`이라고 출력하세요.
@@ -245,7 +378,9 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     if match:
         images_str = match.group(1)
         if images_str.lower() != "none":
-            cited_images = [img.strip() for img in images_str.split(',')]
+            # 쉼표로 구분된 경로 추출, 공백 제거 및 중복 제거
+            raw_images = [img.strip() for img in images_str.split(',')]
+            cited_images = sorted(list(set(img for img in raw_images if img)))
         
         final_answer = full_response.replace(match.group(0), "").strip()
     parsing_time = time.time() - parsing_start_time

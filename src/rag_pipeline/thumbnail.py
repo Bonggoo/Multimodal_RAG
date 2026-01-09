@@ -21,11 +21,18 @@ def create_thumbnails(document: fitz.Document, doc_name: str, base_output_dir: s
     
     thumbnail_paths = []
     for page_num in range(len(document)):
+        page_num_actual = page_num + 1
+        output_path = os.path.join(output_dir, f"page_{page_num_actual:03d}.png")
+        
+        # 이미 파일이 존재하는지 확인
+        if os.path.exists(output_path):
+            # 파일이 존재하면 생성을 건너뛰고 경로만 추가
+            thumbnail_paths.append(output_path)
+            continue
+
         page = document.load_page(page_num)
         # 페이지를 이미지로 렌더링합니다.
         pix = page.get_pixmap()
-        # 파일명을 더 단순하게 (폴더명이 문서이름을 포함하므로)
-        output_path = os.path.join(output_dir, f"page_{page_num+1:03d}.png")
         # 이미지를 파일로 저장합니다.
         pix.save(output_path)
         thumbnail_paths.append(output_path)

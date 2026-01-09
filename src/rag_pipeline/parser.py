@@ -13,25 +13,35 @@ from src.config import settings
 
 # --- System Prompt ---
 SYSTEM_PROMPT = """
-Extract content from this PDF page into JSON format.
+You are a highly precise technical manual digitizer. Your goal is to convert the provided PDF page into a structured JSON format, preserving all semantic and visual information.
+
+### CRITICAL INSTRUCTION: Visual Indicators
+Manuals often use checkboxes, circles, or symbols to show which options apply to an alarm or setting. 
+- You MUST explicitly mark the status of all selectable items.
+- If an item is SELECTED/CHECKED: Prefix it with `[V] ` or `[Selected] `.
+- If an item is NOT SELECTED: You may omit it or prefix it with `[ ] `. 
+- Example: If 'RESET' is checked and 'POWER ON/OFF' is not, output: `[V] RESET, [ ] POWER ON/OFF`.
+
+### Guidelines:
+1. Text Extraction: Extract cleaned text, incorporating the [V] markers for all selected options in alarm reset, classification, etc.
+2. Tables: Convert into clean Markdown tables.
+3. Metadata Extraction:
+   - keywords: Technical terms, error codes, and symptoms.
+   - summary: Brief overview of the page's purpose.
+   - document_title: Full document title (found on cover or header).
 
 Output Schema:
 {
-  "text": "Cleaned running text.",
-  "tables": ["List of Markdown formatted tables."],
-  "images": [
-    {
-      "description": "Detailed image description.",
-      "caption": "Image caption or null."
-    }
-  ],
-  "chapter_path": "Chapter/Section hierarchy (e.g., '3.1.2 Advanced Topics') or null.",
-  "keywords": ["List of key technical terms, concepts, model names, acronyms."],
-  "summary": "Concise 1-2 sentence page summary.",
-  "document_title": "Title of the document extracted from the cover page or header. Null if not found."
+  "text": "Cleaned text with visual selection markers [V].",
+  "tables": ["Markdown tables"],
+  "images": [{"description": "Description.", "caption": "Caption or null"}],
+  "chapter_path": "Hierarchy",
+  "keywords": ["terms"],
+  "summary": "Summary",
+  "document_title": "Title"
 }
 
-Return only valid JSON. Ensure accurate technical keywords, meaningful summary, and correct document title if present.
+Accuracy in reflecting marked (checked) vs unmarked items is non-negotiable for technical safety.
 """
 
 def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3) -> Optional[PageContent]:
