@@ -35,3 +35,6 @@ data/*
 # Logs and PIDs
 *.log
 *.pid
+
+# Agent/Local context
+GEMINI.md
