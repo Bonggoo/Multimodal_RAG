@@ -94,7 +94,7 @@ async def process_document_background(
 
         async def parse_and_track(p_num, p_bytes, p_thumb):
             nonlocal processed_count
-            result = await parse_page_multimodal_async(p_bytes, semaphore)
+            result = await parse_page_multimodal_async(p_bytes, semaphore, doc_name=doc_name, page_num=p_num)
             
             processed_count += 1
             progress = round(processed_count / total_pages * 100)
@@ -170,7 +170,8 @@ async def process_document_background(
 async def ingest_document(
     request: Request,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    force: bool = Query(False, description="이미 존재하는 문서라도 강제로 다시 인제스트할지 여부")
 ):
     """
     PDF 파일을 업로드하여 RAG 시스템에 등록하는 작업을 시작합니다.
@@ -178,6 +179,14 @@ async def ingest_document(
     """
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="PDF 파일만 업로드 가능합니다.")
+
+    doc_name = Path(file.filename).stem
+    indexed_docs = get_indexed_documents()
+    if not force and any(d["filename"] == doc_name for d in indexed_docs):
+        raise HTTPException(
+            status_code=409, 
+            detail=f"이미 '{doc_name}' 문서가 인덱싱되어 있습니다. 다시 인제스트하려면 force=true 파라미터를 사용하세요."
+        )
 
     upload_dir = Path("data/uploads")
     upload_dir.mkdir(parents=True, exist_ok=True)

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     CHROMA_DB_DIR: str = Field("chroma_db", description="ChromaDB 데이터 저장 경로")
     COLLECTION_NAME: str = Field("manual_rag", description="ChromaDB 컬렉션 이름")
     BM25_INDEX_PATH: str = Field("data/bm25_index.pkl", description="BM25 인덱스 파일 저장 경로")
+    PARSED_DATA_DIR: str = Field("data/parsed", description="파싱된 페이지 JSON 데이터 저장 경로")
 
     # .env 파일 로드 설정
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

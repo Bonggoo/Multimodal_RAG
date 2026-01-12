@@ -10,7 +10,8 @@
 ### 1. 고성능 멀티모달 파싱 (High-Performance Parsing)
 *   **병렬 처리(Parallel Ingestion)**: `asyncio`와 `semaphore`를 사용하여 대용량 PDF를 기존 대비 **3.5배 빠르게** 처리합니다.
 *   **Gemini Vision 기반**: PDF의 표 구조와 다이어그램을 텍스트로 변환하여 벡터 DB에 인덱싱합니다.
-*   **문서 제목 추출**: AI가 문서 내용을 분석하여 직관적인 제목(Title)을 자동 추출합니다.
+*   **JSON 캐싱 시스템**: 파싱 결과를 로컬에 JSON으로 저장하여, 동일 문서 재처리 시 **API 비용을 0원으로** 만듭니다.
+*   **문서 제목 및 중복 체크**: AI 기반 제목 자동 추출 및 기존 문서 중복 업로드 방지 로직을 지원합니다.
 
 ### 2. 정밀 검색 & 필터링 (Advanced Retrieval)
 *   **고급 청킹(Semantic Chunking)**: `RecursiveCharacterTextSplitter`를 사용하여 문맥 유지를 최적화했습니다.

@@ -2,6 +2,7 @@ import os
 import asyncio
 import base64
 import time
+import json
 from typing import Optional
 from pydantic import ValidationError
 
@@ -44,18 +45,28 @@ Output Schema:
 Accuracy in reflecting marked (checked) vs unmarked items is non-negotiable for technical safety.
 """
 
-def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3) -> Optional[PageContent]:
+def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3, doc_name: str = None, page_num: int = None) -> Optional[PageContent]:
     """
     Parses a single PDF page using a multimodal Gemini model and validates the output.
-    Includes a retry mechanism with exponential backoff for robustness.
-
-    Args:
-        pdf_page_bytes: The bytes of a single-page PDF.
-        max_retries: Maximum number of retries for parsing failures.
-
-    Returns:
-        A validated PageContent object, or None if parsing or validation fails after retries.
+    If doc_name and page_num are provided, checks for cached JSON results.
     """
+    # 0. 캐시 확인
+    cache_path = None
+    if doc_name and page_num:
+        cache_dir = os.path.join(settings.PARSED_DATA_DIR, doc_name)
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_path = os.path.join(cache_dir, f"page_{page_num:03d}.json")
+        
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    cache_data = json.load(f)
+                    # metadata 필드가 있다면 제거하고 객체 생성 (기존 호환성 위해)
+                    cache_data.pop("metadata", None)
+                    return PageContent(**cache_data)
+            except Exception as e:
+                print(f"Failed to load cache from {cache_path}: {e}")
+
     # Initialize LangChain's ChatGoogleGenerativeAI model
     # using settings.GEMINI_MODEL (e.g. gemini-1.5-pro or gemini-2.5-flash)
     llm = ChatGoogleGenerativeAI(
@@ -85,6 +96,22 @@ def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3) -> Option
         try:
             # Invoke the model
             validated_data: PageContent = llm.invoke([message])
+            
+            # JSON 저장
+            if cache_path:
+                try:
+                    save_data = validated_data.dict()
+                    # 사용자 요청에 따라 페이지 번호 등 추가 메타데이터 저장
+                    save_data["metadata"] = {
+                        "doc_name": doc_name,
+                        "page_num": page_num,
+                        "parsed_at": time.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    with open(cache_path, "w", encoding="utf-8") as f:
+                        json.dump(save_data, f, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    print(f"Failed to save results to {cache_path}: {e}")
+                    
             return validated_data
 
         except ValidationError as e:
@@ -103,7 +130,9 @@ def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3) -> Option
 async def parse_page_multimodal_async(
     pdf_page_bytes: bytes, 
     semaphore: asyncio.Semaphore,
-    max_retries: int = 3
+    max_retries: int = 3,
+    doc_name: str = None,
+    page_num: int = None
 ) -> Optional[PageContent]:
     """
     Parses a single PDF page using a multimodal Gemini model asynchronously.
@@ -111,4 +140,4 @@ async def parse_page_multimodal_async(
     """
     async with semaphore:
         # Use existing sync function in a separate thread
-        return await asyncio.to_thread(parse_page_multimodal, pdf_page_bytes, max_retries)
+        return await asyncio.to_thread(parse_page_multimodal, pdf_page_bytes, max_retries, doc_name, page_num)

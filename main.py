@@ -14,13 +14,14 @@ from src.rag_pipeline.loader import load_pdf_as_documents
 from src.rag_pipeline.thumbnail import create_thumbnails
 from src.rag_pipeline.parser import parse_page_multimodal
 from src.rag_pipeline.vector_db import get_vector_store, add_page_content_to_vector_db
+from src.api.services import get_indexed_documents
 from src.rag_pipeline.retriever import get_retriever
 from src.rag_pipeline.generator import generate_answer_with_rag
 
 # Typer 앱 생성
 app = typer.Typer(help="Multimodal RAG CLI 애플리케이션")
 
-def process_page_task(page_num, page_bytes, thumbnail_path, vector_store):
+def process_page_task(page_num, page_bytes, thumbnail_path, vector_store, doc_name):
     """
     개별 페이지를 파싱하고 벡터 스토어에 저장하는 작업 단위 함수입니다.
     스레드 풀에서 실행됩니다.
@@ -38,8 +39,8 @@ def process_page_task(page_num, page_bytes, thumbnail_path, vector_store):
             if len(text.strip()) < 50 and not images:
                 return False, page_num, "SKIPPED: 내용 부족 (텍스트 < 50자, 이미지 없음)"
 
-        # 2. 멀티모달 파싱 (API 호출 - 병목 구간)
-        parsed_content = parse_page_multimodal(page_bytes)
+        # 2. 멀티모달 파싱 (API 호출 - 병목 구간 또는 로컬 JSON 로드)
+        parsed_content = parse_page_multimodal(page_bytes, doc_name=doc_name, page_num=page_num)
 
         if parsed_content and thumbnail_path:
             # 벡터 스토어에 적재
@@ -64,6 +65,17 @@ def ingest_pdf(
     """
     typer.echo(f"'{file_path.name}' 파일 처리를 시작합니다... (Workers: {workers})")
     
+    # 중복 체크
+    doc_name = file_path.stem
+    indexed_docs = get_indexed_documents()
+    existing_doc = next((d for d in indexed_docs if d["filename"] == doc_name), None)
+    
+    if existing_doc:
+        overwrite = typer.confirm(f"⚠️  이미 '{doc_name}' 문서가 인덱싱되어 있습니다. 다시 인제스트 하시겠습니까? (기존 데이터가 중복될 수 있습니다)", default=False)
+        if not overwrite:
+            typer.echo("작업을 취소합니다.")
+            raise typer.Exit()
+
     try:
         # 1. PDF 로드 (LangChain Document 객체 리스트로)
         doc_name = file_path.stem
@@ -113,7 +125,7 @@ def ingest_pdf(
                     page_thumbnail_path = next((p for p in thumbnail_paths if f"page_{page_num:03d}" in p), None)
 
                     # 작업 제출
-                    future = executor.submit(process_page_task, page_num, page_bytes, page_thumbnail_path, vector_store)
+                    future = executor.submit(process_page_task, page_num, page_bytes, page_thumbnail_path, vector_store, doc_name)
                     future_to_page[future] = page_num
                 
                 except Exception as e:
@@ -180,8 +192,13 @@ def ask_question(
         retriever = get_retriever()
         typer.echo("Retriever 준비 완료. 답변을 생성합니다...")
         
-        # 2. RAG 체인을 사용하여 답변 생성
-        result = generate_answer_with_rag(query, retriever)
+        # 2. Query Expander 준비
+        from src.rag_pipeline.query_expansion import QueryExpander
+        from src.config import settings
+        query_expander = QueryExpander(model_name=settings.GEMINI_MODEL)
+        
+        # 3. RAG 체인을 사용하여 답변 생성
+        result = generate_answer_with_rag(query, retriever, query_expander)
         answer = result["answer"]
         image_paths = result["image_paths"]
         

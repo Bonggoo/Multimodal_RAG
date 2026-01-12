@@ -7,8 +7,8 @@ class Image(BaseModel):
 
 class PageContent(BaseModel):
     text: str
-    tables: List[str]
-    images: List[Image]
+    tables: List[str] = Field(default_factory=list, description="페이지에서 추출된 표 리스트 (Markdown 형식)")
+    images: List[Image] = Field(default_factory=list, description="페이지에서 추출된 이미지에 대한 설명 리스트")
     chapter_path: Optional[str] = None
     keywords: List[str] = Field(default_factory=list, description="페이지의 핵심 기술 용어 및 키워드 리스트")
     summary: Optional[str] = Field(None, description="페이지의 내용을 요약한 텍스트")

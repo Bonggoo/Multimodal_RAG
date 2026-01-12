@@ -27,6 +27,12 @@ graph TD
         Generator["Answer Generator<br>(Gemini 2.5)"]
     end
 
+    subgraph Storage ["Persistent Storage"]
+        VectorDB_Files["ChromaDB Collection"]
+        ParsedJSON["Parsed JSON Cache<br>(data/parsed)"]
+        Thumbnails["Thumbnails<br>(assets/images)"]
+    end
+
     subgraph Performance ["Performance & Feedback"]
         Logs["QA & Feedback Logs<br>(JSONL)"]
         Eval["Evaluation Engine<br>(Ragas Framework)"]
@@ -59,15 +65,15 @@ graph TD
 
 ### 3.1. RAG 파이프라인 (`src/rag_pipeline`)
 
-* **`parser.py`**: 비동기(`asyncio`) 병렬 처리를 통해 PDF를 고속 파싱합니다. Gemini를 사용하여 텍스트, 표, 이미지 설명 및 **문서 제목**을 추출합니다.
-* **`vector_db.py`**: `jhgan/ko-sroberta-multitask` 모델을 사용하여 로컬 임베딩을 수행합니다. 추출된 제목과 메타데이터를 포함하여 ChromaDB에 저장합니다.
+* **`parser.py`**: 비동기(`asyncio`) 병렬 처리를 통해 PDF를 고속 파싱합니다. Gemini를 사용하여 텍스트, 표, 이미지 설명 및 **문서 제목**을 추출합니다. **로컬 JSON 캐싱 시스템**을 통해 중복 처리 비용을 제거합니다.
+* **`vector_db.py`**: `jhgan/ko-sroberta-multitask` 모델을 사용하여 로컬 임베딩을 수행합니다. 추출된 제목과 메타데이터(페이지 번호, 일시 등)를 포함하여 ChromaDB에 저장합니다.
 * **`retriever.py`**: 문서명을 기준으로 검색 범위를 한정하는 **필터링 기능**이 추가된 하이브리드 검색기입니다.
 * **`generator.py`**: 검색된 컨텍스트와 이미지를 종합하여 정확한 답변을 생성하며, 이미지 출처를 명시합니다.
 
 ### 3.2. API 서버 (`src/api`)
 
 * **`routes.py`**:
-  * `/ingest`: 백그라운드 태스크로 대용량 문서를 처리하며 진행률을 추적합니다.
+  * `/ingest`: 백그라운드 태스크로 대용량 문서를 처리하며 진행률을 추적합니다. **중복 업로드 방지 로직**과 `force` 옵션을 지원합니다.
   * `/qa`: `trace_id`를 발급하고 답변을 반환합니다.
   * `/feedback`: 사용자의 피드백을 수집하여 로그에 저장합니다.
   * `/documents`: 인덱싱된 문서 목록과 추출된 제목을 반환합니다.

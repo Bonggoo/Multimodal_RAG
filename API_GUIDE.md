@@ -44,6 +44,9 @@ PDF 문서를 업로드하여 인덱싱합니다. (비동기 처리)
 **Endpoint:** `POST /ingest`
 **Content-Type:** `multipart/form-data`
 
+**Query Parameters:**
+*   `force`: (Boolean, Optional, default: `false`) 이미 인덱싱된 문서가 있어도 무시하고 진행할지 여부. `false`일 경우 중복 시 `409 Conflict`를 반환합니다.
+
 **Body:**
 *   `file`: (Binary PDF File)
 
@@ -52,6 +55,14 @@ PDF 문서를 업로드하여 인덱싱합니다. (비동기 처리)
 {
   "job_id": "job_12345",
   "message": "문서 처리 작업이 시작되었습니다..."
+}
+```
+
+**Conflict (409):**
+이미 존재하는 문서일 경우 발생하는 에러입니다.
+```json
+{
+  "detail": "이미 'QD77MS' 문서가 인덱싱되어 있습니다. 다시 인제스트하려면 force=true 파라미터를 사용하세요."
 }
 ```
 
