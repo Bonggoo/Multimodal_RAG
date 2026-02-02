@@ -47,11 +47,21 @@ def create_documents_from_page_content(page_content: PageContent, page_num: int,
     
     # 공통 메타데이터: keywords와 summary를 page_content에서 직접 가져옵니다.
     # ChromaDB 호환성을 위해 리스트는 문자열로 변환합니다.
+    
+    # doc_name 추출: thumbnail_path가 있으면 폴더명에서, 없으면 기본값
+    if not document_title and page_content.document_title:
+        document_title = page_content.document_title
+
+    extracted_doc_name = "unknown_doc"
+    if thumbnail_path:
+        # assets/images/DOC_NAME/page_001.png -> DOC_NAME
+        extracted_doc_name = os.path.basename(os.path.dirname(thumbnail_path))
+
     base_metadata = {
         "page": page_num,
-        "image_path": thumbnail_path,
-        "doc_name": os.path.basename(os.path.dirname(thumbnail_path)), # 올바른 문서 이름 추출
-        "chapter_path": page_content.chapter_path,
+        "image_path": thumbnail_path if thumbnail_path else "",
+        "doc_name": extracted_doc_name,
+        "chapter_path": page_content.chapter_path if page_content.chapter_path else "",
         "keywords": ", ".join(page_content.keywords) if page_content.keywords else "",
         "summary": page_content.summary if page_content.summary else "",
         "title": document_title if document_title else "",

@@ -59,8 +59,8 @@ EMBEDDING_DEVICE=cpu  # or mps, cuda
 # CLI 명령어 사용 (권장)
 poetry run python main.py serve
 
-# 또는 Uvicorn 직접 실행
-poetry run uvicorn src.api.main:app --reload
+# 또는 Uvicorn 직접 실행 (데이터 디렉토리 제외를 위해 src 폴더만 리로드 설정)
+poetry run uvicorn src.api.main:app --reload --reload-dir src
 ```
 
 ---

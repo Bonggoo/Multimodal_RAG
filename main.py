@@ -228,7 +228,7 @@ def serve_api(
     Multimodal RAG API 서버를 실행합니다.
     """
     typer.echo(f"API 서버를 시작합니다... http://{host}:{port}")
-    uvicorn.run("src.api.main:app", host=host, port=port, reload=reload)
+    uvicorn.run("src.api.main:app", host=host, port=port, reload=reload, reload_dirs=["src"])
 
 
 if __name__ == "__main__":

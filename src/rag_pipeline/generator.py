@@ -1,7 +1,7 @@
 import re 
 import os
 import time
-from typing import List, Dict, Any, AsyncIterator
+from typing import List, Dict, Any, AsyncIterator, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
@@ -14,15 +14,39 @@ from src.config import settings
 from src.rag_pipeline.vector_db import get_vector_store
 from src.api.schemas import QAFilters
 
+def extract_page_number(query: str) -> Optional[int]:
+    """
+    쿼리에서 'XXX페이지' 또는 'p.XXX', 'page XXX' 형식의 페이지 번호를 추출합니다.
+    """
+    patterns = [
+        r'(\d+)\s*페이지',
+        r'(\d+)\s*page',
+        r'p\.\s*(\d+)',
+        r'page\s*(\d+)'
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, query, re.IGNORECASE)
+        if match:
+            try:
+                page_num = int(match.group(1))
+                # 일반적인 매뉴얼 페이지 범위를 고려 (예: 1~2000)
+                if 1 <= page_num <= 3000:
+                    return page_num
+            except (ValueError, TypeError):
+                continue
+    return None
+
 def format_docs(docs: List[Any]) -> str:
     """
     검색된 문서들을 단일 문자열 컨텍스트로 포맷합니다.
-    각 문서의 내용 앞에 출처 이미지 경로를 명시합니다.
+    각 문서의 내용 앞에 출처(문서명, 페이지, 이미지 경로)를 명시합니다.
     """
     formatted_docs = []
     for doc in docs:
         image_path = doc.metadata.get('image_path', 'N/A')
-        content = f"[Image Source: {image_path}]\n{doc.page_content}"
+        doc_name = doc.metadata.get('doc_name', 'N/A')
+        page_num = doc.metadata.get('page', 'N/A')
+        content = f"[Document: {doc_name}, Page: {page_num}, Image Source: {image_path}]\n{doc.page_content}"
         formatted_docs.append(content)
     return "\n\n".join(formatted_docs)
 
@@ -98,10 +122,30 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     
     vector_store = get_vector_store()
     
+    # 3. 스마트 라우팅: 페이지 번호 추출 및 필터 구성
+    page_filter = extract_page_number(query)
+    
+    search_filter = {}
     if filters and filters.doc_name:
-        print(f"Applying filters: {filters}")
+        search_filter["doc_name"] = filters.doc_name
+    
+    if page_filter:
+        print(f"Smart Routing: Detected page filter {page_filter}")
+        # ChromaDB $and 조건 구성 (문서명 필터가 있는 경우)
+        if "doc_name" in search_filter:
+            search_filter = {"$and": [
+                {"doc_name": {"$eq": search_filter["doc_name"]}},
+                {"page": {"$eq": page_filter}}
+            ]}
+        else:
+            search_filter = {"page": {"$eq": page_filter}}
+    
+    # 4. 필터가 적용된 검색 수행
+    if search_filter:
+        print(f"Applying search filters: {search_filter}")
+        # 필터가 걸린 경우 k를 조절하거나 해당 페이지의 모든 청크를 가져오도록 함
         filtered_retriever = vector_store.as_retriever(
-            search_kwargs={'filter': {'doc_name': filters.doc_name}, 'k': 100}
+            search_kwargs={'filter': search_filter, 'k': 50 if page_filter else 100}
         )
         docs_orig = filtered_retriever.invoke(refined_query)
         docs_exp = filtered_retriever.invoke(expanded_query)
@@ -179,9 +223,9 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     2. 매뉴얼의 선택 항목(체크박스 등)은 `[V]` 또는 `[ ]`로 표시되어 있습니다.
        - `[V]` 표시가 붙은 항목은 **선택/활성화된** 정보입니다.
        - `[ ]` 표시가 붙은 항목은 **선택되지 않은** 정보이므로 무시하거나 언급하지 마세요.
-    3. 답변 작성 시 참고한 `Image Source` 경로를 기억해두세요.
+    답변 작성 시 참고한 정보의 문서명, 페이지 번호, 그리고 `Image Source` 경로를 정확히 확인하세요.
     
-    답변의 맨 마지막에, 참고한 모든 이미지 경로를 다음 형식으로 나열해 주세요.
+    답변의 마지막에, 참고한 모든 이미지 경로를 다음 형식으로 나열해 주세요.
     **매우 중요**: 답변 작성에 조금이라도 근거가 된 모든 [Image Source]를 하나도 빠짐없이 나열하세요. 
     내용이 여러 페이지에 걸쳐 있다면 해당 페이지의 경로를 모두 포함해야 합니다.
     [[Cited Images: 경로1, 경로2, ...]]
@@ -252,10 +296,27 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
 
     vector_store = get_vector_store()
 
+    # 스마트 라우팅: 페이지 번호 추출 및 필터 구성
+    page_filter = extract_page_number(query)
+    
+    search_filter = {}
     if filters and filters.doc_name:
-        print(f"Applying filters: {filters}")
+        search_filter["doc_name"] = filters.doc_name
+    
+    if page_filter:
+        print(f"Smart Routing (Streaming): Detected page filter {page_filter}")
+        if "doc_name" in search_filter:
+            search_filter = {"$and": [
+                {"doc_name": {"$eq": search_filter["doc_name"]}},
+                {"page": {"$eq": page_filter}}
+            ]}
+        else:
+            search_filter = {"page": {"$eq": page_filter}}
+
+    if search_filter:
+        print(f"Applying search filters (Streaming): {search_filter}")
         filtered_retriever = vector_store.as_retriever(
-            search_kwargs={'filter': {'doc_name': filters.doc_name}, 'k': 100}
+            search_kwargs={'filter': search_filter, 'k': 50 if page_filter else 100}
         )
         docs_orig = filtered_retriever.invoke(refined_query)
         docs_exp = filtered_retriever.invoke(expanded_query)
@@ -335,9 +396,9 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     2. 매뉴얼의 선택 항목(체크박스 등)은 `[V]` 또는 `[ ]`로 표시되어 있습니다.
        - `[V]` 표시가 붙은 항목은 **선택/활성화된** 정보입니다.
        - `[ ]` 표시가 붙은 항목은 **선택되지 않은** 정보이므로 무시하거나 언급하지 마세요.
-    3. 답변 작성 시 참고한 `Image Source` 경로를 기억해두세요.
+    3. 답변 작성 시 참고한 정보의 문서명, 페이지 번호, 그리고 `Image Source` 경로를 정확히 확인하세요.
     
-    답변의 맨 마지막에, 참고한 모든 이미지 경로를 다음 형식으로 나열해 주세요:
+    답변의 마지막에, 참고한 모든 이미지 경로를 다음 형식으로 나열해 주세요:
     [[Cited Images: 경로1, 경로2, ...]]
 
     만약 참고한 이미지가 없다면 `[[Cited Images: None]]`이라고 출력하세요.

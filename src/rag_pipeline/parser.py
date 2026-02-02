@@ -53,6 +53,8 @@ def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3, doc_name:
     # 0. 캐시 확인
     cache_path = None
     if doc_name and page_num:
+        # data/parsed 디렉토리 확인 및 생성
+        os.makedirs(settings.PARSED_DATA_DIR, exist_ok=True)
         cache_dir = os.path.join(settings.PARSED_DATA_DIR, doc_name)
         os.makedirs(cache_dir, exist_ok=True)
         cache_path = os.path.join(cache_dir, f"page_{page_num:03d}.json")
@@ -61,9 +63,18 @@ def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3, doc_name:
             try:
                 with open(cache_path, "r", encoding="utf-8") as f:
                     cache_data = json.load(f)
-                    # metadata 필드가 있다면 제거하고 객체 생성 (기존 호환성 위해)
-                    cache_data.pop("metadata", None)
-                    return PageContent(**cache_data)
+                    
+                    # metadata 필드가 있다면 제거 (PageContent 모델 생성과 충돌 방지)
+                    if "metadata" in cache_data:
+                        cache_data.pop("metadata")
+                    
+                    # PageContent 필드만 필터링하여 생성
+                    from pydantic import ValidationError
+                    allowed_fields = PageContent.model_fields.keys() if hasattr(PageContent, "model_fields") else PageContent.__fields__.keys()
+                    filtered_data = {k: v for k, v in cache_data.items() if k in allowed_fields}
+                    
+                    print(f"  [Cache] Loaded parsed data for {doc_name} page {page_num}")
+                    return PageContent(**filtered_data)
             except Exception as e:
                 print(f"Failed to load cache from {cache_path}: {e}")
 
@@ -109,6 +120,7 @@ def parse_page_multimodal(pdf_page_bytes: bytes, max_retries: int = 3, doc_name:
                     }
                     with open(cache_path, "w", encoding="utf-8") as f:
                         json.dump(save_data, f, ensure_ascii=False, indent=2)
+                    print(f"  [Cache] Saved parsed data for {doc_name} page {page_num}")
                 except Exception as e:
                     print(f"Failed to save results to {cache_path}: {e}")
                     
