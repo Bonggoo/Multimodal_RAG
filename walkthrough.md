@@ -54,15 +54,6 @@
 * **효과**: 사용자에게 `scan_001.pdf` 대신 `RAG System User Manual`과 같은 직관적인 제목 제공.
 * **검증**: `tests/api/test_title_extraction.py` (PASSED) ✅.
 
-### 2.4. 배포 준비 (Deployment)
-
-- **구현**: `Dockerfile`, `docker-compose.yml` 및 자동 실행 스크립트(`scripts/`) 작성.
-* **효과**: 환경 종속성 없이 어디서든 즉시 실행 가능 (`./scripts/docker_run.sh`).
-* **구성**:
-  * `python:3.11-slim` 기반, `poppler-utils` 등 시스템 의존성 포함.
-  * `docker-compose`로 볼륨 마운트(`data/`, `chroma_db/`) 자동 설정.
-  * 테스트용 PDF의 "RAG System User Manual" 제목을 정확히 인식하고 API 응답에 포함함을 확인.
-
 ---
 
 ## 🛡 섹션 3: 품질 관리 (Quality Assurance)
