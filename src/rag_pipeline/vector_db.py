@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -17,10 +17,9 @@ def get_embedding_function():
     """Google Generative AI 임베딩 함수를 반환합니다. (캐싱 사용)"""
     global _embedding_function
     if _embedding_function is None:
-        _embedding_function = HuggingFaceEmbeddings(
-            model_name=settings.EMBEDDING_MODEL,
-            model_kwargs={'device': settings.EMBEDDING_DEVICE},
-            encode_kwargs={'normalize_embeddings': True} 
+        _embedding_function = GoogleGenerativeAIEmbeddings(
+            model=settings.EMBEDDING_MODEL,
+            google_api_key=settings.GOOGLE_API_KEY.get_secret_value()
         )
     return _embedding_function
 

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from src.api.routes import router as api_router, ws_router
 from src.rag_pipeline.retriever import get_retriever
 from src.rag_pipeline.query_expansion import QueryExpander
@@ -15,6 +16,8 @@ app = FastAPI(
 origins = [
     "http://localhost",
     "http://localhost:3000",
+    "http://127.0.0.1",
+    "http://127.0.0.1:3000",
 ]
 
 app.add_middleware(
@@ -40,6 +43,9 @@ app.state.job_status = {}
 
 app.include_router(api_router)
 app.include_router(ws_router)
+
+# 정적 파일(이미지 썸네일 등) 서빙을 위한 경로 설정
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 @app.get("/")
 async def root():
