@@ -8,9 +8,10 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse
 
-from src.api.schemas import QARequest, QAResponse, AsyncIngestResponse, JobStatusResponse, DocumentListResponse, DeleteDocumentResponse, QAFilters, FeedbackRequest
+from src.api.schemas import QARequest, QAResponse, AsyncIngestResponse, JobStatusResponse, DocumentListResponse, DeleteDocumentResponse, QAFilters, FeedbackRequest, UserProfile
 from src.api.services import get_indexed_documents, delete_document
 from src.api.logs import log_qa_history, log_feedback
+from src.api.auth import verify_google_token
 import asyncio
 import uuid
 from src.rag_pipeline.loader import load_pdf_as_documents
@@ -281,7 +282,7 @@ async def ask_question(request: Request, qa_request: QARequest):
         if retriever is None or query_expander is None:
             raise HTTPException(status_code=503, detail="Retriever or Query Expander is not available.")
 
-        result = generate_answer_with_rag(qa_request.query, retriever, query_expander, qa_request.filters)
+        result = generate_answer_with_rag(qa_request.query, retriever, query_expander, qa_request.filters, qa_request.history, qa_request.user_profile)
         
         # Trace ID 생성 및 로그 기록
         trace_id = uuid.uuid4()
@@ -300,10 +301,16 @@ async def ask_question(request: Request, qa_request: QARequest):
 async def websocket_qa(websocket: WebSocket, token: str = Query(None)):
     """
     WebSocket을 통해 실시간으로 RAG 파이프라인에 질문하고 스트리밍 답변을 받습니다.
-    'token' 쿼리 파라미터로 API 키 인증을 수행합니다.
+    'token' 쿼리 파라미터로 Google ID Token 인증을 수행합니다.
     """
-    if not token or token != settings.BACKEND_API_KEY.get_secret_value():
-        await websocket.close(code=1008, reason="Invalid API Key")
+    if not token:
+        await websocket.close(code=1008, reason="Missing Token")
+        return
+        
+    try:
+        user_info = verify_google_token(token)
+    except Exception as e:
+        await websocket.close(code=1008, reason=f"Invalid Token: {str(e)}")
         return
         
     await websocket.accept()
@@ -327,7 +334,11 @@ async def websocket_qa(websocket: WebSocket, token: str = Query(None)):
                 continue
 
             try:
-                async for chunk in generate_answer_with_rag_streaming(query, retriever, query_expander, filters):
+                history = data.get("history")
+                user_profile_dict = data.get("user_profile")
+                user_profile = UserProfile(**user_profile_dict) if user_profile_dict else None
+                
+                async for chunk in generate_answer_with_rag_streaming(query, retriever, query_expander, filters, history, user_profile):
                     await websocket.send_json(chunk)
 
             except Exception as e:

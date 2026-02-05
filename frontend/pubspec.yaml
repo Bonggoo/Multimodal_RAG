@@ -46,6 +46,7 @@ dependencies:
   web_socket_channel: ^3.0.3
   lucide_icons_flutter: ^3.1.9
   animated_text_kit: ^4.2.2
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:

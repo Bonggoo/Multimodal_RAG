@@ -1,12 +1,20 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from uuid import UUID
 
 class QAFilters(BaseModel):
     doc_name: Optional[str] = Field(None, description="검색 범위를 제한할 문서 이름")
 
+class UserProfile(BaseModel):
+    name: Optional[str] = Field(None, description="사용자 이름")
+    role: Optional[str] = Field(None, description="직업 또는 역할")
+    interests: Optional[List[str]] = Field(None, description="관심 분야")
+    custom_instructions: Optional[str] = Field(None, description="추가 지시 사항 (예: 항상 친절하게, 전문 용어 사용 자제 등)")
+
 class QARequest(BaseModel):
     query: str
+    history: Optional[List[Dict[str, str]]] = Field(None, description="이전 대화 내역 ( [{'role': 'user', 'content': '...'}, {'role': 'assistant', 'content': '...'}] )")
+    user_profile: Optional[UserProfile] = Field(None, description="사용자 개인화 프로필 정보")
     filters: Optional[QAFilters] = None
 
 class QAResponse(BaseModel):

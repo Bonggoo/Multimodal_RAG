@@ -12,7 +12,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from src.rag_pipeline.query_expansion import QueryExpander
 from src.config import settings
 from src.rag_pipeline.vector_db import get_vector_store
-from src.api.schemas import QAFilters
+from src.api.schemas import QAFilters, UserProfile
 
 def extract_page_number(query: str) -> Optional[int]:
     """
@@ -99,7 +99,7 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     )
     return rag_chain
 
-def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expander: QueryExpander, filters: QAFilters = None) -> Dict[str, Any]:
+def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expander: QueryExpander, filters: QAFilters = None, history: List[Dict[str, str]] = None, user_profile: UserProfile = None) -> Dict[str, Any]:
     """
     RAG 체인을 사용하여 사용자 질문에 답변을 생성하고,
     답변에 실제 인용된 이미지 경로만 추출하여 반환합니다.
@@ -108,6 +108,8 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
         query (str): 사용자 질문.
         retriever (BaseRetriever): 문서 검색을 위한 검색기 객체.
         query_expander (QueryExpander): 쿼리 확장을 위한 객체.
+        history (List[Dict[str, str]]): 이전 대화 내역.
+        user_profile (UserProfile): 사용자 개인화 프로필 정보.
 
     Returns:
         Dict[str, Any]: 생성된 답변, 인용된 이미지 경로 리스트, 확장된 쿼리.
@@ -211,31 +213,42 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     docs = docs[:100]
     context_text = format_docs(docs)
 
-    # 3. 답변 생성 (원본 질문 + 검색된 컨텍스트)
+    # 3. 답변 생성 (원본 질문 + 검색된 컨텍스트 + 대화 내역 + 사용자 프로필)
     # 프롬프트: 답변 마지막에 인용된 이미지 소스를 리스트업 하도록 지시
+    history_text = ""
+    if history:
+        history_text = "\n".join([f"{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in history])
+
+    profile_text = "제공된 프로필 정보가 없습니다."
+    if user_profile:
+        parts = []
+        if user_profile.name: parts.append(f"이름: {user_profile.name}")
+        if user_profile.role: parts.append(f"역할/직업: {user_profile.role}")
+        if user_profile.interests: parts.append(f"관심분야: {', '.join(user_profile.interests)}")
+        if user_profile.custom_instructions: parts.append(f"추가 요청사항: {user_profile.custom_instructions}")
+        profile_text = "\n".join(parts)
+
     template = """
-    당신은 주어진 컨텍스트 정보를 바탕으로 사용자의 질문에 답변하는 유용한 AI 어시스턴트입니다.
-    답변은 한국어로 작성하며, 기술적인 내용은 정확하게 전달해야 합니다.
-    컨텍스트에 없는 내용은 지어내지 말고 모른다고 답변하세요.
+    당신은 사용자의 목표를 돕는 강력한 개인화 AI 비서입니다.
+    현재 대화 중인 사용자에 대한 정보는 다음과 같습니다. 
 
-    ### 컨텍스트 읽기 지침:
-    1. 각 컨텍스트 블록은 `[Image Source: ...]`로 시작합니다.
-    2. 매뉴얼의 선택 항목(체크박스 등)은 `[V]` 또는 `[ ]`로 표시되어 있습니다.
-       - `[V]` 표시가 붙은 항목은 **선택/활성화된** 정보입니다.
-       - `[ ]` 표시가 붙은 항목은 **선택되지 않은** 정보이므로 무시하거나 언급하지 마세요.
-    답변 작성 시 참고한 정보의 문서명, 페이지 번호, 그리고 `Image Source` 경로를 정확히 확인하세요.
-    
-    답변의 마지막에, 참고한 모든 이미지 경로를 다음 형식으로 나열해 주세요.
-    **매우 중요**: 답변 작성에 조금이라도 근거가 된 모든 [Image Source]를 하나도 빠짐없이 나열하세요. 
-    내용이 여러 페이지에 걸쳐 있다면 해당 페이지의 경로를 모두 포함해야 합니다.
-    [[Cited Images: 경로1, 경로2, ...]]
+    **사용자 프로필:**
+    {user_profile}
 
-    만약 참고한 이미지가 없다면 `[[Cited Images: None]]`이라고 출력하세요.
+    **작동 지침:**
+    1. **자연스러운 대화**: 답변마다 유저의 이름을 부르거나 똑같은 인삿말을 반복하지 마세요. 이미 인사를 나눴다면 본론부터 답하세요.
+    2. **암묵적 개인화**: 프로필 정보는 답변의 스타일을 결정하는 참고용으로만 사용하고 직접 언급하지 마세요.
+    3. **정확한 정보 제공**: 제공된 컨텍스트를 최우선으로 참고하여 핵심 내용을 답변하세요.
+    4. **문맥 유지**: 이전 대화 내역에 맞춰 자연스럽게 대화를 이어가세요.
+    5. **출처 명시**: 문서 기반 답변 시 마지막에 [[Cited Images: 경로]]를 반드시 포함하세요.
 
-    **컨텍스트:**
+    **이전 대화 내역:**
+    {chat_history}
+
+    **컨텍스트 (참고 문서):**
     {context}
 
-    **질문:**
+    **현재 질문:**
     {question}
 
     **답변:**
@@ -243,13 +256,18 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     prompt = ChatPromptTemplate.from_template(template)
     llm = ChatGoogleGenerativeAI(
         model=settings.GEMINI_MODEL,
-        temperature=0,
+        temperature=0.3,
         google_api_key=settings.GOOGLE_API_KEY.get_secret_value()
     )
     
     chain = prompt | llm | StrOutputParser()
     
-    full_response = chain.invoke({"context": context_text, "question": query})
+    full_response = chain.invoke({
+        "context": context_text, 
+        "question": query,
+        "chat_history": history_text,
+        "user_profile": profile_text
+    })
     
     # 4. 답변과 이미지 경로 분리 (Regex Parsing)
     # 예상 포맷: ... 답변 내용 ... [[Cited Images: path/to/img1.png, path/to/img2.png]]
@@ -275,7 +293,7 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
         "expanded_query": expanded_query
     }
 
-async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetriever, query_expander: QueryExpander, filters: QAFilters = None) -> AsyncIterator[Dict[str, Any]]:
+async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetriever, query_expander: QueryExpander, filters: QAFilters = None, history: List[Dict[str, str]] = None, user_profile: UserProfile = None) -> AsyncIterator[Dict[str, Any]]:
     """
     RAG 체인을 사용하여 사용자 질문에 대한 답변을 스트리밍하고,
     마지막에 인용된 이미지 경로를 반환합니다. (성능 로깅 포함)
@@ -285,7 +303,13 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
 
     # 1. 쿼리 확장 (Query Expansion)
     expansion_start_time = time.time()
-    expanded_query = query_expander.expand(query)
+    
+    # 대화 내역 포맷팅 (쿼리 확장용)
+    history_context = ""
+    if history:
+        history_context = "\n".join([f"{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in history[-3:]]) # 최근 3개만 참고
+        
+    expanded_query = query_expander.expand(query, history_context)
     expansion_time = time.time() - expansion_start_time
     print(f"[1] Query Expansion Time: {expansion_time:.4f}s")
 
@@ -386,27 +410,41 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     print(f"[3] Context Formatting Time: {format_time:.4f}s")
     
     # 4. 답변 생성 (LLM 스트리밍)
+    history_text = ""
+    if history:
+        # Gemini 2.0의 강력한 컨텍스트 윈도우를 활용하여 전체 내역 전달
+        history_text = "\n".join([f"{'User' if m['role']=='user' else 'Assistant'}: {m['content']}" for m in history])
+
+    profile_text = "제공된 프로필 정보가 없습니다."
+    if user_profile:
+        parts = []
+        if user_profile.name: parts.append(f"이름: {user_profile.name}")
+        if user_profile.role: parts.append(f"역할/직업: {user_profile.role}")
+        if user_profile.interests: parts.append(f"관심분야: {', '.join(user_profile.interests)}")
+        if user_profile.custom_instructions: parts.append(f"추가 요청사항: {user_profile.custom_instructions}")
+        profile_text = "\n".join(parts)
+
     template = """
-    당신은 주어진 컨텍스트 정보를 바탕으로 사용자의 질문에 답변하는 유용한 AI 어시스턴트입니다.
-    답변은 한국어로 작성하며, 기술적인 내용은 정확하게 전달해야 합니다.
-    컨텍스트에 없는 내용은 지어내지 말고 모른다고 답변하세요.
+    당신은 사용자의 목표를 돕는 강력한 개인화 AI 비서입니다.
+    현재 대화 중인 사용자에 대한 정보는 다음과 같습니다. 
 
-    ### 컨텍스트 읽기 지침:
-    1. 각 컨텍스트 블록은 `[Image Source: ...]`로 시작합니다.
-    2. 매뉴얼의 선택 항목(체크박스 등)은 `[V]` 또는 `[ ]`로 표시되어 있습니다.
-       - `[V]` 표시가 붙은 항목은 **선택/활성화된** 정보입니다.
-       - `[ ]` 표시가 붙은 항목은 **선택되지 않은** 정보이므로 무시하거나 언급하지 마세요.
-    3. 답변 작성 시 참고한 정보의 문서명, 페이지 번호, 그리고 `Image Source` 경로를 정확히 확인하세요.
-    
-    답변의 마지막에, 참고한 모든 이미지 경로를 다음 형식으로 나열해 주세요:
-    [[Cited Images: 경로1, 경로2, ...]]
+    **사용자 프로필:**
+    {user_profile}
 
-    만약 참고한 이미지가 없다면 `[[Cited Images: None]]`이라고 출력하세요.
+    **작동 지침:**
+    1. **자연스러운 대화**: 답변마다 유저의 이름을 부르거나 똑같은 인삿말을 반복하지 마세요. 이미 인사를 나눴다면 본론부터 답하세요.
+    2. **암묵적 개인화**: 프로필 정보는 답변의 스타일을 결정하는 참고용으로만 사용하고 직접 언급하지 마세요. (예: 개발자에게는 기술적으로 설명하되 그 이유를 설명 문구에 넣지 마세요.)
+    3. **정확한 정보 제공**: 제공된 컨텍스트를 최우선으로 참고하여 핵심 내용을 답변하세요.
+    4. **문맥 유지**: 이전 대화 내역에 맞춰 자연스럽게 대화를 이어가세요.
+    5. **출처 명시**: 문서 기반 답변 시 마지막에 [[Cited Images: 경로]]를 반드시 포함하세요.
 
-    **컨텍스트:**
+    **이전 대화 내역:**
+    {chat_history}
+
+    **컨텍스트 (참고 문서):**
     {context}
 
-    **질문:**
+    **현재 질문:**
     {question}
 
     **답변:**
@@ -414,7 +452,7 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     prompt = ChatPromptTemplate.from_template(template)
     llm = ChatGoogleGenerativeAI(
         model=settings.GEMINI_MODEL,
-        temperature=0,
+        temperature=0.3,
         google_api_key=settings.GOOGLE_API_KEY.get_secret_value()
     )
     
@@ -423,7 +461,12 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     full_response = ""
     llm_start_time = time.time()
     # astream을 사용하여 비동기 스트리밍
-    async for chunk in chain.astream({"context": context_text, "question": query}):
+    async for chunk in chain.astream({
+        "context": context_text, 
+        "question": query,
+        "chat_history": history_text,
+        "user_profile": profile_text
+    }):
         full_response += chunk
         yield {"type": "token", "payload": chunk}
     llm_time = time.time() - llm_start_time

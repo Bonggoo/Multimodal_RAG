@@ -51,7 +51,7 @@ class SpectralOmegaTheme {
         color: AppColors.surfaceGlass,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(28),
-          side: BorderSide(color: AppColors.glassBorder, width: 0.8),
+          side: const BorderSide(color: AppColors.glassBorder, width: 0.8),
         ),
         elevation: 0,
       ),

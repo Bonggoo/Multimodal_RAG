@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'core/network/api_client.dart';
 import 'core/constants/app_theme_constants.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'core/auth/auth_provider.dart';
 
 void main() {
   runApp(const ProviderScope(child: SpectralOmegaApp()));
@@ -33,6 +34,21 @@ class MainLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
+
+    if (!authState.isInitialized) {
+      return const Scaffold(
+        backgroundColor: AppColors.primaryBackground,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.accentCyan),
+        ),
+      );
+    }
+
+    if (authState.user == null) {
+      return const LoginScreen();
+    }
+
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
       body: SelectionArea(
@@ -69,6 +85,103 @@ class MainLayout extends ConsumerWidget {
   }
 }
 
+class LoginScreen extends ConsumerWidget {
+  const LoginScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
+
+    return Scaffold(
+      backgroundColor: AppColors.primaryBackground,
+      body: Center(
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(48),
+          decoration: BoxDecoration(
+            color: AppColors.sidebarBackground.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: AppColors.glassBorder),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(Icons.bolt, color: Colors.white, size: 48),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'SPECTRAL OMEGA',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Sign in to your AI Assistant',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 48),
+              if (authState.isLoading)
+                const CircularProgressIndicator(color: AppColors.accentCyan)
+              else ...[
+                ElevatedButton(
+                  onPressed: () =>
+                      ref.read(authNotifierProvider.notifier).signIn(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    minimumSize: const Size(double.infinity, 56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.login),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Continue with Google',
+                        style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (authState.errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    authState.errorMessage!,
+                    style: const TextStyle(
+                      color: AppColors.accentRose,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class SideMenu extends ConsumerStatefulWidget {
   const SideMenu({super.key});
 
@@ -78,6 +191,7 @@ class SideMenu extends ConsumerStatefulWidget {
 
 class _SideMenuState extends ConsumerState<SideMenu> {
   bool _isUploading = false;
+  double _uploadProgress = 0;
 
   Future<void> _pickAndUpload() async {
     final result = await FilePicker.platform.pickFiles(
@@ -106,7 +220,17 @@ class _SideMenuState extends ConsumerState<SideMenu> {
           ),
         );
 
-        await dio.post('/ingest', data: formData);
+        await dio.post(
+          '/ingest',
+          data: formData,
+          onSendProgress: (sent, total) {
+            if (total != -1) {
+              setState(() {
+                _uploadProgress = sent / total;
+              });
+            }
+          },
+        );
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -130,7 +254,12 @@ class _SideMenuState extends ConsumerState<SideMenu> {
           ),
         );
       } finally {
-        if (mounted) setState(() => _isUploading = false);
+        if (mounted) {
+          setState(() {
+            _isUploading = false;
+            _uploadProgress = 0;
+          });
+        }
       }
     }
   }
@@ -226,6 +355,48 @@ class _SideMenuState extends ConsumerState<SideMenu> {
             ),
           ),
           const Expanded(child: DocumentListView()),
+          if (_isUploading)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Uploading...',
+                        style: TextStyle(
+                          color: AppColors.textDim,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${(_uploadProgress * 100).toInt()}%',
+                        style: const TextStyle(
+                          color: AppColors.accentCyan,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _uploadProgress,
+                      backgroundColor: Colors.white10,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppColors.accentCyan,
+                      ),
+                      minHeight: 4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: InkWell(
@@ -275,6 +446,45 @@ class _SideMenuState extends ConsumerState<SideMenu> {
                   ],
                 ),
               ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundImage:
+                      ref.watch(authNotifierProvider).user?.photoUrl != null
+                      ? NetworkImage(
+                          ref.watch(authNotifierProvider).user!.photoUrl!,
+                        )
+                      : null,
+                  child: ref.watch(authNotifierProvider).user?.photoUrl == null
+                      ? const Icon(Icons.person, size: 12)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    ref.watch(authNotifierProvider).user?.displayName ?? 'User',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.logout,
+                    size: 16,
+                    color: AppColors.textDim,
+                  ),
+                  onPressed: () =>
+                      ref.read(authNotifierProvider.notifier).signOut(),
+                ),
+              ],
             ),
           ),
         ],

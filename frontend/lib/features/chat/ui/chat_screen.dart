@@ -49,7 +49,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = ref.watch(chatProvider);
+    final chatState = ref.watch(chatProvider);
+    final messages = chatState.messages;
 
     return Container(
       decoration: BoxDecoration(
@@ -64,7 +65,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.02),
-              border: Border(bottom: BorderSide(color: AppColors.glassBorder)),
+              border: const Border(
+                bottom: BorderSide(color: AppColors.glassBorder),
+              ),
             ),
             child: Row(
               children: [
@@ -135,7 +138,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
-                      return ChatBubble(message: msg);
+                      return ChatBubble(message: msg, index: index);
                     },
                   ),
           ),
@@ -247,12 +250,13 @@ class EmptyChatView extends StatelessWidget {
   }
 }
 
-class ChatBubble extends StatelessWidget {
+class ChatBubble extends ConsumerWidget {
   final ChatMessage message;
-  const ChatBubble({super.key, required this.message});
+  final int index;
+  const ChatBubble({super.key, required this.message, required this.index});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 32),
       child: Row(
@@ -315,6 +319,29 @@ class ChatBubble extends StatelessWidget {
                           .toList(),
                     ),
                   ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.isUser)
+                        _ActionButton(
+                          icon: Icons.refresh_rounded,
+                          onTap: () => ref
+                              .read(chatProvider.notifier)
+                              .retryMessage(index),
+                          tooltip: 'Retry',
+                        ),
+                      _ActionButton(
+                        icon: Icons.delete_outline_rounded,
+                        onTap: () => ref
+                            .read(chatProvider.notifier)
+                            .deleteMessage(index),
+                        tooltip: 'Delete',
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -332,6 +359,40 @@ class ChatBubble extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  const _ActionButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(4.0),
+            child: Icon(
+              icon,
+              size: 16,
+              color: Colors.white.withValues(alpha: 0.3),
+            ),
+          ),
+        ),
       ),
     );
   }
