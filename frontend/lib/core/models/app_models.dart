@@ -21,6 +21,7 @@ class QAResponse with _$QAResponse {
     @JsonKey(name: 'retrieved_images') List<String>? retrievedImages,
     @JsonKey(name: 'doc_name') String? docName,
     @JsonKey(name: 'trace_id') String? traceId,
+    @JsonKey(name: 'session_id') String? sessionId,
   }) = _QAResponse;
 
   factory QAResponse.fromJson(Map<String, dynamic> json) =>

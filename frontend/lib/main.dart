@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'core/theme/spectral_omega_theme.dart';
 import 'features/chat/ui/chat_screen.dart';
+import 'features/chat/ui/session_list_view.dart';
+import 'features/chat/provider/chat_provider.dart';
+import 'features/chat/provider/session_provider.dart';
 import 'features/documents/ui/document_list_view.dart';
 import 'features/documents/provider/document_provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -34,9 +37,15 @@ class MainLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authNotifierProvider);
+    // 특정 필드만 선택적으로 관찰하여 불필요한 전체 리빌드 방지
+    final isInitialized = ref.watch(
+      authNotifierProvider.select((s) => s.isInitialized),
+    );
+    final hasUser = ref.watch(
+      authNotifierProvider.select((s) => s.user != null),
+    );
 
-    if (!authState.isInitialized) {
+    if (!isInitialized) {
       return const Scaffold(
         backgroundColor: AppColors.primaryBackground,
         body: Center(
@@ -45,41 +54,39 @@ class MainLayout extends ConsumerWidget {
       );
     }
 
-    if (authState.user == null) {
+    if (!hasUser) {
       return const LoginScreen();
     }
 
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
-      body: SelectionArea(
-        child: Stack(
-          children: [
-            Positioned(
-              top: -100,
-              left: -100,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.accentIndigo.withValues(alpha: 0.1),
-                ),
+      body: Stack(
+        children: [
+          Positioned(
+            top: -100,
+            left: -100,
+            child: Container(
+              width: 400,
+              height: 400,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.accentIndigo.withValues(alpha: 0.1),
               ),
             ),
+          ),
 
-            const Row(
-              children: [
-                SideMenu(),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 24, right: 24, bottom: 24),
-                    child: ChatScreen(),
-                  ),
+          const Row(
+            children: [
+              SideMenu(),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 24, right: 24, bottom: 24),
+                  child: ChatScreen(),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -318,6 +325,75 @@ class _SideMenuState extends ConsumerState<SideMenu> {
             ),
           ),
           const Divider(color: Colors.white10),
+
+          // 새 채팅 시작 버튼
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: OutlinedButton.icon(
+              onPressed: () => ref.read(chatProvider.notifier).startNewChat(),
+              icon: const Icon(Icons.add_comment_rounded, size: 18),
+              label: Text(
+                'NEW CHAT',
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accentCyan,
+                side: BorderSide(
+                  color: AppColors.accentCyan.withValues(alpha: 0.3),
+                ),
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // 채팅 세션 섹션
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 14,
+                  color: AppColors.accentIndigo,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'RECENT CHATS',
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    size: 12,
+                    color: AppColors.textDim,
+                  ),
+                  onPressed: () =>
+                      ref.read(sessionListProvider.notifier).refresh(),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+          const Expanded(flex: 2, child: SessionListView()),
+
+          const Divider(color: Colors.white10, height: 1),
+
+          // 문서 섹션
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Row(
@@ -354,7 +430,7 @@ class _SideMenuState extends ConsumerState<SideMenu> {
               ],
             ),
           ),
-          const Expanded(child: DocumentListView()),
+          const Expanded(flex: 3, child: DocumentListView()),
           if (_isUploading)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),

@@ -19,44 +19,59 @@ except ImportError:
          raise ImportError("EnsembleRetriever could not be imported from langchain.retrievers or langchain_classic.retrievers")
 
 # --- BM25 한국어 토크나이저 설정 (전역) ---
-# 이 함수는 pickle로 저장 및 로드해야 하므로, 전역 레벨에 정의되어야 합니다.
-try:
-    from konlpy.tag import Okt
-    from tqdm import tqdm
+_okt = None
 
-    print("konlpy.tag.Okt 로드 성공. BM25에 한국어 토크나이저를 적용합니다.")
-    okt_tokenizer = Okt()
-    
-    def korean_tokenizer(text: str) -> List[str]:
-        """Okt를 사용한 전역 한국어 토크나이저"""
-        return okt_tokenizer.morphs(text)
-    
-    BM25_PREPROCESS_FUNC = korean_tokenizer
+def get_okt():
+    global _okt
+    if _okt is None:
+        try:
+            from konlpy.tag import Okt
+            import jpype
+            if not jpype.isJVMStarted():
+                # 이미 실행 중인 JVM이 없을 때만 시작 (기본 경로 사용)
+                jpype.startJVM(convertStrings=True)
+            elif jpype.isJVMStarted() and not jpype.isThreadAttachedToJVM():
+                jpype.attachThreadToJVM()
+            
+            _okt = Okt()
+            print("konlpy.tag.Okt 지연 로드 성공.")
+        except Exception as e:
+            print(f"Okt 로드 중 오류 발생: {e}. 기본 토크나이징을 사용합니다.")
+            return None
+    return _okt
 
-except ImportError:
-    print("WARNING: konlpy가 설치되지 않았습니다. 기본 토크나이저(공백 기준)로 BM25를 초기화합니다. 한국어 검색 성능이 저하될 수 있습니다.")
-    from tqdm import tqdm # tqdm은 konlpy와 무관하게 사용 가능
-    # 기본 토크나이저 함수
-    def default_tokenizer(text: str) -> List[str]:
-        return text.split()
-    
-    BM25_PREPROCESS_FUNC = default_tokenizer
+def korean_tokenizer(text: str) -> List[str]:
+    """Okt를 사용한 전역 한국어 토크나이저 (지연 로드 방식)"""
+    okt = get_okt()
+    if okt:
+        try:
+            return okt.morphs(text)
+        except Exception as e:
+            print(f"Okt 토크나이징 오류: {e}")
+            return text.split()
+    return text.split()
+
+BM25_PREPROCESS_FUNC = korean_tokenizer
 # --- 끝 ---
 
 BM25_INDEX_PATH = Path(settings.BM25_INDEX_PATH)
 
 def get_retriever(
+    uid: str = "default",
     collection_name: str = settings.COLLECTION_NAME,
-    db_path: str = settings.CHROMA_DB_DIR,
     search_kwargs: Dict[str, Any] = {"k": 40},
     ensemble_weights: List[float] = [0.5, 0.5],
     force_update: bool = False
 ) -> BaseRetriever:
     """
-    LangChain Chroma 벡터 스토어와 BM25를 결합한 EnsembleRetriever를 반환합니다.
-    BM25 인덱스는 로컬 파일에 캐싱하며, 문서 ID 집합을 비교하여 불필요한 재생성을 방지합니다.
+    유저 UID별 EnsembleRetriever를 반환합니다.
+    BM25 인덱스는 {CHROMA_DB_DIR}/{uid}/bm25_index.pkl 에 저장됩니다.
     """
-    vector_store = get_vector_store(collection_name=collection_name, db_path=db_path)
+    # 유저별 전용 경로 설정
+    db_path = os.path.join(settings.CHROMA_DB_DIR, uid)
+    bm25_path = Path(db_path) / "bm25_index.pkl"
+    
+    vector_store = get_vector_store(uid=uid, collection_name=collection_name, db_path=db_path)
     
     # Vector Retriever 초기화
     vector_retriever = vector_store.as_retriever(
@@ -66,9 +81,9 @@ def get_retriever(
     bm25_retriever = None
 
     # 1. 캐시된 BM25 인덱스 로드 시도 (force_update가 아닐 때)
-    if not force_update and BM25_INDEX_PATH.exists():
+    if not force_update and bm25_path.exists():
         try:
-            with open(BM25_INDEX_PATH, "rb") as f:
+            with open(bm25_path, "rb") as f:
                 bm25_retriever = pickle.load(f)
             bm25_retriever.k = search_kwargs.get("k", 20)
         except Exception as e:
@@ -89,9 +104,9 @@ def get_retriever(
             return vector_retriever
 
         # (최적화) 기존 인덱스가 있고, 문서 ID 집합이 동일하면 재생성 스킵
-        if BM25_INDEX_PATH.exists():
+        if bm25_path.exists():
             try:
-                with open(BM25_INDEX_PATH, "rb") as f:
+                with open(bm25_path, "rb") as f:
                     cached_retriever = pickle.load(f)
                 
                 # 'doc_id'가 메타데이터에 있는지 확인하고 ID 집합 생성
@@ -99,11 +114,11 @@ def get_retriever(
                 current_ids = set(ids)
                 
                 if cached_ids == current_ids:
-                    print(f"BM25 인덱스가 이미 최신 상태입니다. ({len(current_ids)}개 문서) 생성을 건너뜁니다.")
+                    print(f"BM25 인덱스가 이미 최신 상태입니다. ({len(current_ids)}개 문서) 생성을 건너뜜 (UID: {uid})")
                     bm25_retriever = cached_retriever
                     bm25_retriever.k = search_kwargs.get("k", 20)
                 else:
-                    print("문서 변경이 감지되어 BM25 인덱스를 재생성합니다.")
+                    print(f"문서 변경이 감지되어 BM25 인덱스를 재생성합니다. (UID: {uid})")
             except Exception as e:
                 print(f"캐시된 BM25 인덱스 비교 중 오류 발생 (재생성 진행): {e}")
 
@@ -126,10 +141,10 @@ def get_retriever(
         
         # 인덱스 저장
         try:
-            BM25_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-            with open(BM25_INDEX_PATH, "wb") as f:
+            bm25_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(bm25_path, "wb") as f:
                 pickle.dump(bm25_retriever, f)
-            print(f"BM25 인덱스가 '{BM25_INDEX_PATH}'에 저장되었습니다.")
+            print(f"BM25 인덱스가 '{bm25_path}'에 저장되었습니다.")
         except Exception as e:
             print(f"BM25 인덱스 저장 실패: {e}")
 

@@ -15,12 +15,17 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   bool _isSmartRouting = false;
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(_detectSmartRouting);
+    // 초기 포커스 요청
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
   }
 
   void _detectSmartRouting() {
@@ -31,10 +36,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
   void _handleSend() {
     if (_controller.text.trim().isEmpty) return;
+
+    final chatState = ref.read(chatProvider);
+    if (chatState.isLoading) return; // 로딩 중에는 전송 방지
+
     ref.read(chatProvider.notifier).sendMessage(_controller.text.trim());
     _controller.clear();
+    _focusNode.requestFocus(); // 전송 후 다시 초점 맞추기
 
     Future.delayed(const Duration(milliseconds: 200), () {
       if (_scrollController.hasClients) {
@@ -127,20 +145,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
 
           Expanded(
-            child: messages.isEmpty
-                ? const EmptyChatView()
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 32,
+            child: SelectionArea(
+              child: messages.isEmpty
+                  ? const EmptyChatView()
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 32,
+                      ),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = messages[index];
+                        return ChatBubble(message: msg, index: index);
+                      },
                     ),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      return ChatBubble(message: msg, index: index);
-                    },
-                  ),
+            ),
           ),
 
           Padding(
@@ -169,14 +189,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
+                      focusNode: _focusNode,
+                      autofocus: true,
+                      enabled: !chatState.isLoading,
                       style: const TextStyle(color: Colors.white, fontSize: 15),
-                      decoration: const InputDecoration(
-                        hintText: 'Type your question here...',
+                      decoration: InputDecoration(
+                        hintText: chatState.isLoading
+                            ? 'Loading session...'
+                            : 'Type your question here...',
                         border: InputBorder.none,
-                        hintStyle: TextStyle(
+                        hintStyle: const TextStyle(
                           color: AppColors.textDim,
                           fontSize: 15,
                         ),
+                        suffixIcon: chatState.isLoading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.accentIndigo,
+                                  ),
+                                ),
+                              )
+                            : null,
                       ),
                       onSubmitted: (_) => _handleSend(),
                     ),

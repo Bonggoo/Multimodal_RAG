@@ -3,6 +3,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../core/auth/auth_provider.dart';
+import '../../../core/network/api_client.dart';
+import './session_provider.dart';
 
 part 'chat_provider.g.dart';
 part 'chat_provider.freezed.dart';
@@ -32,6 +34,8 @@ class ChatState with _$ChatState {
   const factory ChatState({
     required List<ChatMessage> messages,
     required UserProfile profile,
+    String? currentSessionId,
+    @Default(false) bool isLoading,
   }) = _ChatState;
 }
 
@@ -39,8 +43,8 @@ class ChatState with _$ChatState {
 class Chat extends _$Chat {
   @override
   ChatState build() {
-    // AuthNotifier에서 유저 정보를 구독하여 초기 프로필 설정
-    final authUser = ref.watch(authNotifierProvider).user;
+    // AuthNotifier에서 유저 정보를 구독하되, 유저 객체 자체가 바뀔 때만 재빌드되도록 수정
+    final authUser = ref.watch(authNotifierProvider.select((s) => s.user));
 
     return ChatState(
       messages: [],
@@ -50,6 +54,7 @@ class Chat extends _$Chat {
         interests: ['Flutter', 'Python', 'AI'],
         customInstructions: '항상 친절하고 기술적인 답변을 제공해주세요.',
       ),
+      isLoading: false,
     );
   }
 
@@ -109,7 +114,7 @@ class Chat extends _$Chat {
 
     // 구글 ID Token 가져오기
     final idToken = await ref.read(authNotifierProvider.notifier).getIdToken();
-    final wsUrl = 'ws://127.0.0.1:8000/ws/qa?token=${idToken ?? "12345"}';
+    final wsUrl = 'ws://127.0.0.1:8000/ws/qa?token=${idToken ?? ""}';
     final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
     // 이전 대화 내역 추출 (현재 질문과 빈 AI 메시지 제외)
@@ -129,6 +134,7 @@ class Chat extends _$Chat {
         'interests': state.profile.interests,
         'custom_instructions': state.profile.customInstructions,
       },
+      if (state.currentSessionId != null) 'session_id': state.currentSessionId,
       if (docName != null) 'filters': {'doc_name': docName},
     };
 
@@ -151,6 +157,21 @@ class Chat extends _$Chat {
           );
           final String traceId = payload['trace_id'] ?? '';
           final String displayAnswer = payload['final_answer'] ?? fullAnswer;
+
+          // 세션 ID가 새로 발급되었거나 갱신된 경우 저장
+          final String? sessionId = payload['session_id'];
+          final String? sessionTitle = payload['session_title'];
+
+          if (sessionId != null && state.currentSessionId == null) {
+            state = state.copyWith(currentSessionId: sessionId);
+          }
+
+          // 제목이 새로 생성되었거나 세션이 새로 시작된 경우 리스트 갱신
+          if (sessionTitle != null ||
+              (sessionId != null && state.currentSessionId == null)) {
+            ref.read(sessionListProvider.notifier).refresh();
+          }
+
           _updateAiMessage(
             aiMessageIndex,
             displayAnswer,
@@ -184,5 +205,40 @@ class Chat extends _$Chat {
       traceId: traceId,
     );
     state = state.copyWith(messages: newList);
+  }
+
+  Future<void> loadSession(String sessionId) async {
+    state = state.copyWith(
+      isLoading: true,
+      messages: [],
+      currentSessionId: sessionId,
+    );
+    final dio = ref.read(dioProvider);
+    try {
+      final response = await dio.get('/sessions/$sessionId');
+      final List<dynamic> messagesJson = response.data['messages'];
+
+      final messages = messagesJson
+          .map(
+            (m) => ChatMessage(
+              text: m['content'],
+              isUser: m['role'] == 'user',
+              traceId: m['trace_id'],
+            ),
+          )
+          .toList();
+
+      state = state.copyWith(messages: messages, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false);
+    }
+  }
+
+  void startNewChat() {
+    state = state.copyWith(
+      messages: [],
+      currentSessionId: null,
+      isLoading: false,
+    );
   }
 }

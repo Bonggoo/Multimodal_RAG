@@ -449,6 +449,8 @@ abstract class _UserProfile implements UserProfile {
 mixin _$ChatState {
   List<ChatMessage> get messages => throw _privateConstructorUsedError;
   UserProfile get profile => throw _privateConstructorUsedError;
+  String? get currentSessionId => throw _privateConstructorUsedError;
+  bool get isLoading => throw _privateConstructorUsedError;
 
   /// Create a copy of ChatState
   /// with the given fields replaced by the non-null parameter values.
@@ -462,7 +464,12 @@ abstract class $ChatStateCopyWith<$Res> {
   factory $ChatStateCopyWith(ChatState value, $Res Function(ChatState) then) =
       _$ChatStateCopyWithImpl<$Res, ChatState>;
   @useResult
-  $Res call({List<ChatMessage> messages, UserProfile profile});
+  $Res call({
+    List<ChatMessage> messages,
+    UserProfile profile,
+    String? currentSessionId,
+    bool isLoading,
+  });
 
   $UserProfileCopyWith<$Res> get profile;
 }
@@ -481,7 +488,12 @@ class _$ChatStateCopyWithImpl<$Res, $Val extends ChatState>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? messages = null, Object? profile = null}) {
+  $Res call({
+    Object? messages = null,
+    Object? profile = null,
+    Object? currentSessionId = freezed,
+    Object? isLoading = null,
+  }) {
     return _then(
       _value.copyWith(
             messages: null == messages
@@ -492,6 +504,14 @@ class _$ChatStateCopyWithImpl<$Res, $Val extends ChatState>
                 ? _value.profile
                 : profile // ignore: cast_nullable_to_non_nullable
                       as UserProfile,
+            currentSessionId: freezed == currentSessionId
+                ? _value.currentSessionId
+                : currentSessionId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            isLoading: null == isLoading
+                ? _value.isLoading
+                : isLoading // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -517,7 +537,12 @@ abstract class _$$ChatStateImplCopyWith<$Res>
   ) = __$$ChatStateImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({List<ChatMessage> messages, UserProfile profile});
+  $Res call({
+    List<ChatMessage> messages,
+    UserProfile profile,
+    String? currentSessionId,
+    bool isLoading,
+  });
 
   @override
   $UserProfileCopyWith<$Res> get profile;
@@ -536,7 +561,12 @@ class __$$ChatStateImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? messages = null, Object? profile = null}) {
+  $Res call({
+    Object? messages = null,
+    Object? profile = null,
+    Object? currentSessionId = freezed,
+    Object? isLoading = null,
+  }) {
     return _then(
       _$ChatStateImpl(
         messages: null == messages
@@ -547,6 +577,14 @@ class __$$ChatStateImplCopyWithImpl<$Res>
             ? _value.profile
             : profile // ignore: cast_nullable_to_non_nullable
                   as UserProfile,
+        currentSessionId: freezed == currentSessionId
+            ? _value.currentSessionId
+            : currentSessionId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        isLoading: null == isLoading
+            ? _value.isLoading
+            : isLoading // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -558,6 +596,8 @@ class _$ChatStateImpl implements _ChatState {
   const _$ChatStateImpl({
     required final List<ChatMessage> messages,
     required this.profile,
+    this.currentSessionId,
+    this.isLoading = false,
   }) : _messages = messages;
 
   final List<ChatMessage> _messages;
@@ -570,10 +610,15 @@ class _$ChatStateImpl implements _ChatState {
 
   @override
   final UserProfile profile;
+  @override
+  final String? currentSessionId;
+  @override
+  @JsonKey()
+  final bool isLoading;
 
   @override
   String toString() {
-    return 'ChatState(messages: $messages, profile: $profile)';
+    return 'ChatState(messages: $messages, profile: $profile, currentSessionId: $currentSessionId, isLoading: $isLoading)';
   }
 
   @override
@@ -582,7 +627,11 @@ class _$ChatStateImpl implements _ChatState {
         (other.runtimeType == runtimeType &&
             other is _$ChatStateImpl &&
             const DeepCollectionEquality().equals(other._messages, _messages) &&
-            (identical(other.profile, profile) || other.profile == profile));
+            (identical(other.profile, profile) || other.profile == profile) &&
+            (identical(other.currentSessionId, currentSessionId) ||
+                other.currentSessionId == currentSessionId) &&
+            (identical(other.isLoading, isLoading) ||
+                other.isLoading == isLoading));
   }
 
   @override
@@ -590,6 +639,8 @@ class _$ChatStateImpl implements _ChatState {
     runtimeType,
     const DeepCollectionEquality().hash(_messages),
     profile,
+    currentSessionId,
+    isLoading,
   );
 
   /// Create a copy of ChatState
@@ -605,12 +656,18 @@ abstract class _ChatState implements ChatState {
   const factory _ChatState({
     required final List<ChatMessage> messages,
     required final UserProfile profile,
+    final String? currentSessionId,
+    final bool isLoading,
   }) = _$ChatStateImpl;
 
   @override
   List<ChatMessage> get messages;
   @override
   UserProfile get profile;
+  @override
+  String? get currentSessionId;
+  @override
+  bool get isLoading;
 
   /// Create a copy of ChatState
   /// with the given fields replaced by the non-null parameter values.

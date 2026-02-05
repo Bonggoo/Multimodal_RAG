@@ -13,6 +13,7 @@ class UserProfile(BaseModel):
 
 class QARequest(BaseModel):
     query: str
+    session_id: Optional[str] = Field(None, description="채팅 세션 ID (없으면 새 세션 생성)")
     history: Optional[List[Dict[str, str]]] = Field(None, description="이전 대화 내역 ( [{'role': 'user', 'content': '...'}, {'role': 'assistant', 'content': '...'}] )")
     user_profile: Optional[UserProfile] = Field(None, description="사용자 개인화 프로필 정보")
     filters: Optional[QAFilters] = None
@@ -22,6 +23,7 @@ class QAResponse(BaseModel):
     retrieved_images: List[str]
     doc_name: Optional[str] = None
     page: Optional[int] = None
+    session_id: str = Field(..., description="현재 채팅 세션 ID")
     trace_id: Optional[UUID] = None  # 추적을 위한 고유 ID
 
 class FeedbackRequest(BaseModel):
@@ -50,3 +52,22 @@ class DeleteDocumentResponse(BaseModel):
     message: str
     deleted_db_entries: int
     thumbnail_deleted: bool
+class ChatSession(BaseModel):
+    session_id: str
+    title: str
+    created_at: str
+    last_message_at: str
+
+class SessionListResponse(BaseModel):
+    sessions: List[ChatSession]
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    timestamp: Optional[str] = None
+    trace_id: Optional[str] = None
+
+class SessionDetailResponse(BaseModel):
+    session_id: str
+    title: str
+    messages: List[ChatMessage]

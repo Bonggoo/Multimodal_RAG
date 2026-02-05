@@ -503,3 +503,37 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     
     total_time = time.time() - total_start_time
     print(f"--- Total RAG Pipeline Time: {total_time:.4f}s ---")
+
+def generate_session_title(query: str, answer: str) -> str:
+    """
+    사용자의 첫 번째 질문과 AI의 답변을 기반으로 짧고 명확한 채팅 제목을 생성합니다.
+    """
+    print(f"[Titling] Generating title for query: {query[:50]}...")
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model=settings.GEMINI_MODEL,
+            temperature=0.7,
+            google_api_key=settings.GOOGLE_API_KEY.get_secret_value()
+        )
+        
+        prompt = (
+            "당신은 채팅방 주제 요약 전문가입니다. "
+            "사용자의 질문과 AI의 답변을 보고, 이 대화의 주제를 가장 잘 나타내는 짧은 제목(10자 이내)을 하나만 지어주세요. "
+            "추가 설명이나 따옴표, 마침표 없이 제목만 출력하세요.\n\n"
+            f"유저 질문: {query}\n"
+            f"AI 답변: {answer[:200]}...\n\n"
+            "채팅방 제목:"
+        )
+        
+        response = llm.invoke(prompt)
+        title = response.content.strip()
+        
+        # 특수문자 및 불필요한 장식 제거
+        title = re.sub(r'["\'“”.,!]', '', title)
+        title = title.replace("채팅방 제목:", "").strip()
+        
+        print(f"[Titling] Generated title: {title}")
+        return title if title else "새로운 채팅"
+    except Exception as e:
+        print(f"[Titling] Error generating session title: {e}")
+        return "새로운 채팅"

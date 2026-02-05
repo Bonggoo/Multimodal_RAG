@@ -9,8 +9,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.rag_pipeline.schema import PageContent
 from src.config import settings
 
-# Chroma 클라이언트 및 임베딩 함수를 전역으로 캐싱하여 중복 로드를 방지합니다.
-_vector_store = None
+# 유저별 벡터 스토어 인스턴스를 캐싱 (UID: Chroma)
+_vector_stores = {}
 _embedding_function = None
 
 def get_embedding_function():
@@ -24,18 +24,24 @@ def get_embedding_function():
     return _embedding_function
 
 def get_vector_store(
+    uid: str = "default",
     collection_name: str = settings.COLLECTION_NAME, 
-    db_path: str = settings.CHROMA_DB_DIR
+    db_path: str = None
 ) -> Chroma:
-    """Chroma 벡터 스토어 클라이언트를 반환합니다. (캐싱 사용)"""
-    global _vector_store
-    if _vector_store is None:
-        _vector_store = Chroma(
+    """유저 UID별 Chroma 벡터 스토어 클라이언트를 반환합니다. (캐싱 사용)"""
+    global _vector_stores
+    
+    if db_path is None:
+        # 유저별 독립된 DB 경로 설정
+        db_path = os.path.join(settings.CHROMA_DB_DIR, uid)
+    
+    if uid not in _vector_stores:
+        _vector_stores[uid] = Chroma(
             collection_name=collection_name,
             persist_directory=db_path,
             embedding_function=get_embedding_function()
         )
-    return _vector_store
+    return _vector_stores[uid]
 
 def create_documents_from_page_content(page_content: PageContent, page_num: int, thumbnail_path: str, document_title: str = None) -> List[Document]:
     """

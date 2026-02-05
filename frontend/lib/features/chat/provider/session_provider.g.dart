@@ -1,29 +1,29 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'document_provider.dart';
+part of 'session_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$documentListHash() => r'a6b899ad65dcb07a1091234d4e34fc89cf43e50a';
+String _$sessionListHash() => r'93f588ec8cb80f1e48b269bfbbe7323a3495ba14';
 
-/// See also [DocumentList].
-@ProviderFor(DocumentList)
-final documentListProvider =
+/// See also [SessionList].
+@ProviderFor(SessionList)
+final sessionListProvider =
     AutoDisposeAsyncNotifierProvider<
-      DocumentList,
-      List<DocumentModel>
+      SessionList,
+      List<Map<String, dynamic>>
     >.internal(
-      DocumentList.new,
-      name: r'documentListProvider',
+      SessionList.new,
+      name: r'sessionListProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
           ? null
-          : _$documentListHash,
+          : _$sessionListHash,
       dependencies: null,
       allTransitiveDependencies: null,
     );
 
-typedef _$DocumentList = AutoDisposeAsyncNotifier<List<DocumentModel>>;
+typedef _$SessionList = AutoDisposeAsyncNotifier<List<Map<String, dynamic>>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

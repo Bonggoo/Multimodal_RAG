@@ -197,6 +197,8 @@ mixin _$QAResponse {
   String? get docName => throw _privateConstructorUsedError;
   @JsonKey(name: 'trace_id')
   String? get traceId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'session_id')
+  String? get sessionId => throw _privateConstructorUsedError;
 
   /// Serializes this QAResponse to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -220,6 +222,7 @@ abstract class $QAResponseCopyWith<$Res> {
     @JsonKey(name: 'retrieved_images') List<String>? retrievedImages,
     @JsonKey(name: 'doc_name') String? docName,
     @JsonKey(name: 'trace_id') String? traceId,
+    @JsonKey(name: 'session_id') String? sessionId,
   });
 }
 
@@ -242,6 +245,7 @@ class _$QAResponseCopyWithImpl<$Res, $Val extends QAResponse>
     Object? retrievedImages = freezed,
     Object? docName = freezed,
     Object? traceId = freezed,
+    Object? sessionId = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -260,6 +264,10 @@ class _$QAResponseCopyWithImpl<$Res, $Val extends QAResponse>
             traceId: freezed == traceId
                 ? _value.traceId
                 : traceId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            sessionId: freezed == sessionId
+                ? _value.sessionId
+                : sessionId // ignore: cast_nullable_to_non_nullable
                       as String?,
           )
           as $Val,
@@ -281,6 +289,7 @@ abstract class _$$QAResponseImplCopyWith<$Res>
     @JsonKey(name: 'retrieved_images') List<String>? retrievedImages,
     @JsonKey(name: 'doc_name') String? docName,
     @JsonKey(name: 'trace_id') String? traceId,
+    @JsonKey(name: 'session_id') String? sessionId,
   });
 }
 
@@ -302,6 +311,7 @@ class __$$QAResponseImplCopyWithImpl<$Res>
     Object? retrievedImages = freezed,
     Object? docName = freezed,
     Object? traceId = freezed,
+    Object? sessionId = freezed,
   }) {
     return _then(
       _$QAResponseImpl(
@@ -321,6 +331,10 @@ class __$$QAResponseImplCopyWithImpl<$Res>
             ? _value.traceId
             : traceId // ignore: cast_nullable_to_non_nullable
                   as String?,
+        sessionId: freezed == sessionId
+            ? _value.sessionId
+            : sessionId // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -334,6 +348,7 @@ class _$QAResponseImpl implements _QAResponse {
     @JsonKey(name: 'retrieved_images') final List<String>? retrievedImages,
     @JsonKey(name: 'doc_name') this.docName,
     @JsonKey(name: 'trace_id') this.traceId,
+    @JsonKey(name: 'session_id') this.sessionId,
   }) : _retrievedImages = retrievedImages;
 
   factory _$QAResponseImpl.fromJson(Map<String, dynamic> json) =>
@@ -358,10 +373,13 @@ class _$QAResponseImpl implements _QAResponse {
   @override
   @JsonKey(name: 'trace_id')
   final String? traceId;
+  @override
+  @JsonKey(name: 'session_id')
+  final String? sessionId;
 
   @override
   String toString() {
-    return 'QAResponse(answer: $answer, retrievedImages: $retrievedImages, docName: $docName, traceId: $traceId)';
+    return 'QAResponse(answer: $answer, retrievedImages: $retrievedImages, docName: $docName, traceId: $traceId, sessionId: $sessionId)';
   }
 
   @override
@@ -375,7 +393,9 @@ class _$QAResponseImpl implements _QAResponse {
               _retrievedImages,
             ) &&
             (identical(other.docName, docName) || other.docName == docName) &&
-            (identical(other.traceId, traceId) || other.traceId == traceId));
+            (identical(other.traceId, traceId) || other.traceId == traceId) &&
+            (identical(other.sessionId, sessionId) ||
+                other.sessionId == sessionId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -386,6 +406,7 @@ class _$QAResponseImpl implements _QAResponse {
     const DeepCollectionEquality().hash(_retrievedImages),
     docName,
     traceId,
+    sessionId,
   );
 
   /// Create a copy of QAResponse
@@ -408,6 +429,7 @@ abstract class _QAResponse implements QAResponse {
     @JsonKey(name: 'retrieved_images') final List<String>? retrievedImages,
     @JsonKey(name: 'doc_name') final String? docName,
     @JsonKey(name: 'trace_id') final String? traceId,
+    @JsonKey(name: 'session_id') final String? sessionId,
   }) = _$QAResponseImpl;
 
   factory _QAResponse.fromJson(Map<String, dynamic> json) =
@@ -424,6 +446,9 @@ abstract class _QAResponse implements QAResponse {
   @override
   @JsonKey(name: 'trace_id')
   String? get traceId;
+  @override
+  @JsonKey(name: 'session_id')
+  String? get sessionId;
 
   /// Create a copy of QAResponse
   /// with the given fields replaced by the non-null parameter values.

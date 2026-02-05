@@ -2,21 +2,12 @@ import fitz  # PyMuPDF
 import os
 from typing import List
 
-def create_thumbnails(document: fitz.Document, doc_name: str, base_output_dir: str = "assets/images") -> List[str]:
+def create_thumbnails(document: fitz.Document, doc_name: str, uid: str = "default", base_output_dir: str = "assets/images") -> List[str]:
     """
-    PDF 문서의 각 페이지를 이미지(PNG)로 렌더링하여 문서별 폴더에 저장하고, 
-    생성된 파일 경로 리스트를 반환합니다.
-
-    Args:
-        document (fitz.Document): PDF 문서의 fitz.Document 객체
-        doc_name (str): 출력 폴더명 및 파일명에 사용할 문서 이름 (예: 'my_document')
-        base_output_dir (str): 이미지를 저장할 최상위 디렉토리 경로
-
-    Returns:
-        List[str]: 생성된 썸네일 이미지 파일의 경로 리스트
+    PDF 문서 페이지의 썸네일을 유저별 격리 폴더에 저장합니다.
     """
-    # 문서 이름을 기반으로 하위 디렉토리 경로를 생성합니다.
-    output_dir = os.path.join(base_output_dir, doc_name)
+    # UID와 문서 이름을 기반으로 디렉토리 생성
+    output_dir = os.path.join(base_output_dir, uid, doc_name)
     os.makedirs(output_dir, exist_ok=True)
     
     thumbnail_paths = []

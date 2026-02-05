@@ -23,6 +23,7 @@ _$QAResponseImpl _$$QAResponseImplFromJson(Map<String, dynamic> json) =>
           .toList(),
       docName: json['doc_name'] as String?,
       traceId: json['trace_id'] as String?,
+      sessionId: json['session_id'] as String?,
     );
 
 Map<String, dynamic> _$$QAResponseImplToJson(_$QAResponseImpl instance) =>
@@ -31,4 +32,5 @@ Map<String, dynamic> _$$QAResponseImplToJson(_$QAResponseImpl instance) =>
       'retrieved_images': instance.retrievedImages,
       'doc_name': instance.docName,
       'trace_id': instance.traceId,
+      'session_id': instance.sessionId,
     };
