@@ -64,10 +64,6 @@ class AuthNotifier extends _$AuthNotifier {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final result = await GoogleSignIn.instance.authenticate();
-      if (result == null) {
-        state = state.copyWith(isLoading: false);
-        return;
-      }
       state = state.copyWith(user: result, isLoading: false);
     } catch (e) {
       state = state.copyWith(
