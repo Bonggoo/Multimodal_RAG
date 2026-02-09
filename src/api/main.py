@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -5,6 +6,10 @@ from src.api.routes import router as api_router, ws_router
 from src.rag_pipeline.retriever import get_retriever
 from src.rag_pipeline.query_expansion import QueryExpander
 from src.config import settings
+
+# 필수 디렉토리 보장
+for directory in ["assets/images", "data/parsed"]:
+    os.makedirs(directory, exist_ok=True)
 
 app = FastAPI(
     title="Multimodal RAG API",

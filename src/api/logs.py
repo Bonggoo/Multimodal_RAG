@@ -19,8 +19,18 @@ def get_metadata_path(uid: str):
     return os.path.join(DATA_DIR, uid, "sessions.json")
 
 def load_sessions_metadata(uid: str) -> List[Dict[str, Any]]:
-    """유저의 모든 세션 메타데이터를 로드합니다."""
+    """유저의 모든 세션 메타데이터를 로드합니다. (GCS 우선 확인)"""
     path = get_metadata_path(uid)
+    
+    # 로컬에 없으면 GCS에서 다운로드 시도
+    if not os.path.exists(path):
+        try:
+            remote_path = f"{uid}/sessions.json"
+            storage_manager.download_file(remote_path, path)
+        except Exception as e:
+            # GCS에도 없는 경우 (신규 유저)
+            pass
+
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:

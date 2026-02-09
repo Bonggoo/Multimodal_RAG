@@ -1,6 +1,7 @@
 import re 
 import os
 import time
+from datetime import datetime
 from typing import List, Dict, Any, AsyncIterator, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -13,6 +14,39 @@ from src.rag_pipeline.query_expansion import QueryExpander
 from src.config import settings
 from src.rag_pipeline.vector_db import get_vector_store
 from src.api.schemas import QAFilters, UserProfile
+
+def is_general_query(query: str) -> bool:
+    """
+    쿼리가 매뉴얼 검색이 필요한 기술적 질문인지, 
+    아니면 일상적인 인사나 잡담인지 판별합니다.
+    """
+    # 1. 너무 짧은 쿼리는 대략적으로 잡담으로 간주 (단, 핵심 키워드 제외)
+    clean_query = query.strip()
+    if len(clean_query) < 2:
+        return True
+        
+    # 2. 대표적인 일상어/인사 패턴
+    general_patterns = [
+        r"^안녕", r"^하이", r"^반가워", r"^반갑습", r"^누구야", r"^누구니", 
+        r"^오늘 몇일", r"^오늘 날짜", r"^지금 몇시", r"^오늘 요일",
+        r"^잘가", r"^고마워", r"^수고", r"^바이", r"^감사"
+    ]
+    for pattern in general_patterns:
+        if re.search(pattern, clean_query, re.IGNORECASE):
+            return True
+            
+    # 3. 기술적 키워드(에러코드, 장치명 등)가 포함되어 있는지 확인
+    # 영문+숫자 조합(에러코드 등)이나 특정 장치 키워드(그리퍼, Festo 등)가 있으면 RAG 수행
+    technical_indicators = [
+        r'[A-Z]\d{3,4}', # E1236 등
+        r'그리퍼', r'Festo', r'그랩', r'동작', r'설정', r'방법', r'어떻게', r'왜', r'이유', r'해결'
+    ]
+    for indicator in technical_indicators:
+        if re.search(indicator, clean_query, re.IGNORECASE):
+            return False
+            
+    # 기본적으로는 RAG를 수행하는 것이 안전함 (Unknown -> Technical)
+    return False
 
 def extract_page_number(query: str) -> Optional[int]:
     """
@@ -75,6 +109,7 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     """
     template = """
     당신은 주어진 컨텍스트 정보를 바탕으로 사용자의 질문에 답변하는 유용한 AI 어시스턴트입니다.
+    현재 시간은 {current_time} 입니다.
     
     **컨텍스트:**
     {context}
@@ -92,7 +127,11 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     )
     
     rag_chain = (
-        {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()}
+        {
+            "context": retriever | RunnableLambda(format_docs), 
+            "question": RunnablePassthrough(),
+            "current_time": lambda _: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
         | prompt
         | llm
         | StrOutputParser()
@@ -151,11 +190,11 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
         )
         docs_orig = filtered_retriever.invoke(refined_query)
         docs_exp = filtered_retriever.invoke(expanded_query)
-        docs_raw = filtered_retriever.invoke(query) if refined_query != query else []
+        docs_raw = filtered_retriever.invoke(refined_query) if refined_query != query else []
     else:
         docs_orig = retriever.invoke(refined_query)
         docs_exp = retriever.invoke(expanded_query)
-        docs_raw = retriever.invoke(query) if refined_query != query else []
+        docs_raw = retriever.invoke(refined_query) if refined_query != query else []
     
     # 모든 결과 병합 및 중복 제거
     all_docs = docs_orig + docs_exp + docs_raw
@@ -248,6 +287,7 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     **컨텍스트 (참고 문서):**
     {context}
 
+    **현재 시간:** {current_time}
     **현재 질문:**
     {question}
 
@@ -266,7 +306,8 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
         "context": context_text, 
         "question": query,
         "chat_history": history_text,
-        "user_profile": profile_text
+        "user_profile": profile_text,
+        "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
     
     # 4. 답변과 이미지 경로 분리 (Regex Parsing)
@@ -344,11 +385,11 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
         )
         docs_orig = filtered_retriever.invoke(refined_query)
         docs_exp = filtered_retriever.invoke(expanded_query)
-        docs_raw = filtered_retriever.invoke(query) if refined_query != query else []
+        docs_raw = filtered_retriever.invoke(refined_query) if refined_query != query else []
     else:
         docs_orig = retriever.invoke(refined_query)
         docs_exp = retriever.invoke(expanded_query)
-        docs_raw = retriever.invoke(query) if refined_query != query else []
+        docs_raw = retriever.invoke(refined_query) if refined_query != query else []
     
     # 결과 병합 및 중복 제거
     all_docs = docs_orig + docs_exp + docs_raw
@@ -444,6 +485,7 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     **컨텍스트 (참고 문서):**
     {context}
 
+    **현재 시간:** {current_time}
     **현재 질문:**
     {question}
 
@@ -465,7 +507,8 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
         "context": context_text, 
         "question": query,
         "chat_history": history_text,
-        "user_profile": profile_text
+        "user_profile": profile_text,
+        "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }):
         full_response += chunk
         yield {"type": "token", "payload": chunk}

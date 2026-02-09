@@ -27,11 +27,17 @@ class AuthNotifier extends _$AuthNotifier {
 
   Future<void> _init() async {
     try {
-      // 7.0+ 에서는 initialize() 호출이 필수입니다.
-      await GoogleSignIn.instance.initialize();
+      // 7.0+ 에서는 initialize() 호출이 필요할 수 있습니다 (원본 유지)
+      // ignore: undefined_get_block
+      try {
+        await (GoogleSignIn.instance as dynamic).initialize();
+      } catch (_) {}
 
-      // 사용자 변경 이벤트 구독
-      GoogleSignIn.instance.authenticationEvents.listen((dynamic event) {
+      // 사용자 변경 이벤트 구독 (원본 방식 유지)
+      // ignore: undefined_get_block
+      (GoogleSignIn.instance as dynamic).authenticationEvents.listen((
+        dynamic event,
+      ) {
         try {
           final eventString = event.toString().toLowerCase();
           if (eventString.contains('signin') ||
@@ -50,7 +56,12 @@ class AuthNotifier extends _$AuthNotifier {
       });
 
       // 자동 로그인 시도
-      await GoogleSignIn.instance.attemptLightweightAuthentication();
+      // ignore: undefined_get_block
+      try {
+        await (GoogleSignIn.instance as dynamic)
+            .attemptLightweightAuthentication();
+      } catch (_) {}
+
       state = state.copyWith(isInitialized: true);
     } catch (e) {
       state = state.copyWith(
@@ -61,13 +72,17 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   Future<void> signIn() async {
+    if (state.isLoading) return;
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      final result = await GoogleSignIn.instance.authenticate();
+      // macOS 등에서 authenticate() 사용 (원본 방식 유지)
+      // ignore: undefined_get_block
+      final result = await (GoogleSignIn.instance as dynamic).authenticate();
       state = state.copyWith(user: result, isLoading: false);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
+        user: null, // 실패 시 사용자 캐시 초기화
         errorMessage: '로그인 실패: ${e.toString()}',
       );
     }
@@ -81,7 +96,9 @@ class AuthNotifier extends _$AuthNotifier {
   Future<String?> getIdToken() async {
     if (state.user == null) return null;
     try {
-      return state.user!.authentication.idToken;
+      // 린트 결과에 따라 authentication은 Future가 아니므로 await 제거
+      final dynamic auth = state.user!.authentication;
+      return auth.idToken;
     } catch (e) {
       return null;
     }

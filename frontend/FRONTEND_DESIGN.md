@@ -29,18 +29,19 @@ graph TD
 ## 4. 핵심 기능 UI/UX 설계
 
 ### A. Dashboard & Document Management
-- **macOS Native Look**: 사이드바를 활용한 문서 리스트 제공.
-- **문서 상태 카운터**: 인덱싱된 문서 정보를 카드 형태로 노출.
-- **삭제 인터랙션**: 스와이프 또는 컨텍스트 메뉴를 통한 문서 삭제 (`DELETE /documents`).
+*   **Grid Layout**: 반응형 2열 그리드 (`SliverGrid`) 기반의 문서 관리.
+*   **Stitch Cards**: 상태 인디케이터와 토글 스위치가 포함된 모던 카드 UI.
+*   **Docked Navigation**: 화면 하단에 고정된 네비게이션 바를 통해 메뉴 이동.
 
 ### B. Intelligent Ingest (업로드)
 - **File Dropper**: PDF 파일을 앱으로 드래그할 때 시각적 피드백 제공.
 - **Real-time Progress (Riverpod AsyncValue)**: `GET /ingest/status`를 폴링하거나 스트림으로 변환하여 진행률 애니메이션 처리.
 
 ### C. Multimodal Chat (QA)
-- **Streaming Bubble**: WebSocket을 통해 들어오는 청크 데이터를 리스트뷰에 실시간 반영.
-- **Smart Routing Detection**: 사용자가 페이지 번호를 입력하면 UI 상단에 "Smart Filter Active" 스마트 뱃지 노출.
-- **Multimodal Viewer**: 답변 하단에 포함된 이미지 경로를 기반으로 썸네일 노출 및 클릭 시 전체 화면 확대 기능.
+*   **Split Layout**: 좌측 사이드바(채팅 기록)와 우측 메인 채팅 영억으로 분리된 데스크톱 최적화 구조.
+*   **Streaming Bubble**: WebSocket을 통해 들어오는 청크 데이터를 실시간 반영.
+*   **Multimodal Viewer**: 답변에 포함된 이미지 경로를 썸네일로 노출하고 클릭 시 확대.
+*   **Collapsible Sidebar**: 채팅 기록 사이드바를 접거나 펼쳐서 작업 공간 확보 가능.
 
 ### D. Feedback & Logging
 - **Simple Rating**: ListTile 하단에 긍정/부정 아이콘 배치.

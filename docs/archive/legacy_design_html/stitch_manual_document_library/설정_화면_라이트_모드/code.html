@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html class="light" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>설정 화면 라이트 모드</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .ios-list-item:active {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#0d121b]">
+<div class="relative flex h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-x-hidden max-w-[430px] mx-auto shadow-2xl">
+<div class="sticky top-0 z-10 flex items-center bg-background-light/80 backdrop-blur-md px-4 py-3 border-b border-gray-200">
+<div class="flex-1">
+<span class="material-symbols-outlined text-[#0d121b] cursor-pointer">arrow_back_ios</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-tight flex-1 text-center">설정</h2>
+<div class="flex-1"></div>
+</div>
+<div class="flex-1 overflow-y-auto pb-24">
+<div class="flex flex-col items-center py-8 px-4">
+<div class="relative mb-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-24 w-24 border-2 border-white shadow-sm" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCXzl_RnT2xn37huN_GyHNE3SyWMaTCuy9PPlp1oFg7XRko4fWHV9hc-tAesXfhl0NayHAgc6dYYsBIflzGZYhEggAgRrgJEeH_4yisI7Y4iJ7vca4vQi0USgwsLMnUXGL6-clb-goLDPYuvGmmb1M_WYFTABV-q4NLEVH9ViP5pG8l2EAwm27lTPLLDSkKTIy9wUz6jou9q4YvkWwV2mcOau8Obt7E59XrfRS_5PKfbhA-6p6hod_dCuT3TDeBJzeeYg4xTlS6qCmo");'>
+</div>
+<div class="absolute bottom-0 right-0 bg-primary text-white rounded-full p-1.5 border-2 border-white flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">edit</span>
+</div>
+</div>
+<h1 class="text-xl font-bold text-[#0d121b]">홍길동</h1>
+<p class="text-gray-500 text-sm mt-1">user@example.com</p>
+</div>
+<div class="px-4 space-y-6">
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+<div class="flex items-center gap-4 px-4 py-3 border-b border-gray-50 ios-list-item cursor-pointer">
+<div class="flex items-center justify-center rounded-lg bg-primary/10 text-primary p-2">
+<span class="material-symbols-outlined text-xl">dark_mode</span>
+</div>
+<p class="text-base font-medium flex-1">테마 설정</p>
+<label class="relative flex h-[28px] w-[48px] cursor-pointer items-center rounded-full bg-[#e7ebf3] p-0.5 has-[:checked]:bg-primary transition-colors">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="h-full w-[24px] rounded-full bg-white shadow-md transform transition-transform peer-checked:translate-x-5"></div>
+</label>
+</div>
+<div class="flex items-center gap-4 px-4 py-3 border-b border-gray-50 ios-list-item cursor-pointer">
+<div class="flex items-center justify-center rounded-lg bg-primary/10 text-primary p-2">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</div>
+<p class="text-base font-medium flex-1">알림 설정</p>
+<span class="material-symbols-outlined text-gray-400">chevron_right</span>
+</div>
+<div class="flex items-center gap-4 px-4 py-3 ios-list-item cursor-pointer">
+<div class="flex items-center justify-center rounded-lg bg-primary/10 text-primary p-2">
+<span class="material-symbols-outlined text-xl">language</span>
+</div>
+<p class="text-base font-medium flex-1">언어 선택</p>
+<div class="flex items-center gap-1">
+<span class="text-sm text-gray-500">한국어</span>
+<span class="material-symbols-outlined text-gray-400">chevron_right</span>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+<div class="flex items-center gap-4 px-4 py-3 border-b border-gray-50 ios-list-item cursor-pointer">
+<div class="flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 p-2">
+<span class="material-symbols-outlined text-xl">help</span>
+</div>
+<p class="text-base font-medium flex-1">고객 지원</p>
+<span class="material-symbols-outlined text-gray-400">chevron_right</span>
+</div>
+<div class="flex items-center gap-4 px-4 py-3 ios-list-item cursor-pointer">
+<div class="flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 p-2">
+<span class="material-symbols-outlined text-xl">description</span>
+</div>
+<p class="text-base font-medium flex-1">서비스 이용약관</p>
+<span class="material-symbols-outlined text-gray-400">chevron_right</span>
+</div>
+</div>
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+<button class="w-full flex items-center justify-center gap-2 px-4 py-4 text-red-500 font-bold ios-list-item">
+<span class="material-symbols-outlined">logout</span>
+<span>로그아웃</span>
+</button>
+</div>
+<div class="text-center pb-8">
+<p class="text-gray-400 text-xs font-medium">AI Manual Chatbot v2.4.0</p>
+<p class="text-gray-300 text-[10px] mt-1">© 2024 AI Solutions Co.</p>
+</div>
+</div>
+</div>
+<div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-gray-200 px-12 py-3 flex justify-between items-center z-20">
+<div class="flex flex-col items-center gap-1 text-gray-400 cursor-pointer">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="text-[10px] font-medium">채팅</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-gray-400 cursor-pointer">
+<span class="material-symbols-outlined">library_books</span>
+<span class="text-[10px] font-medium">라이브러리</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-primary cursor-pointer">
+<span class="material-symbols-outlined font-bold">settings</span>
+<span class="text-[10px] font-bold">설정</span>
+</div>
+</div>
+</div>
+
+</body></html>

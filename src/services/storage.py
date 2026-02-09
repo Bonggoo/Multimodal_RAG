@@ -70,6 +70,16 @@ class StorageManager:
             local_path = os.path.join(local_dir, relative_path)
             self.download_file(blob.name, local_path)
 
+    def delete_directory(self, remote_prefix: str):
+        """GCS 디렉토리(prefix) 하위의 모든 객체를 삭제합니다."""
+        if not self.bucket:
+            return
+
+        blobs = self.client.list_blobs(settings.GCS_BUCKET_NAME, prefix=remote_prefix)
+        for blob in blobs:
+            blob.delete()
+        print(f"GCS path '{remote_prefix}' and its contents deleted.")
+
     def sync_db_to_gcs(self, uid: str):
         """유저의 로컬 ChromaDB를 GCS로 업로드합니다."""
         local_db_path = os.path.join(settings.CHROMA_DB_DIR, uid)

@@ -10,6 +10,12 @@ from src.config import settings
 from src.rag_pipeline.vector_db import get_vector_store
 
 try:
+    from tqdm import tqdm
+except ImportError:
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
+
+try:
     from langchain.retrievers import EnsembleRetriever  # type: ignore
 except ImportError:
     try:
@@ -26,18 +32,18 @@ def get_okt():
     if _okt is None:
         try:
             from konlpy.tag import Okt
-            import jpype
-            if not jpype.isJVMStarted():
-                # 이미 실행 중인 JVM이 없을 때만 시작 (기본 경로 사용)
-                jpype.startJVM(convertStrings=True)
-            elif jpype.isJVMStarted() and not jpype.isThreadAttachedToJVM():
-                jpype.attachThreadToJVM()
-            
+            # KoNLPy 내부적으로 init_jvm()을 호출하므로 직접 jpype를 시작할 필요가 없습니다.
+            # Java 환경(Jar 파일 로출 등) 이슈로 에러 발생 시 조용히 폴백합니다.
             _okt = Okt()
-            print("konlpy.tag.Okt 지연 로드 성공.")
+            print("KoNLPy Okt 토크나이저 활성화.")
         except Exception as e:
-            print(f"Okt 로드 중 오류 발생: {e}. 기본 토크나이징을 사용합니다.")
+            # 에러 로그를 한 번만 출력하고, 다음부터는 'FAILED' 상태를 유지하여 재시도를 건너뜁니다.
+            print(f"KoNLPy 로드 실패 (기본 토크나이저 전환): {e}")
+            _okt = "FAILED"
             return None
+    
+    if _okt == "FAILED":
+        return None
     return _okt
 
 def korean_tokenizer(text: str) -> List[str]:
