@@ -131,84 +131,34 @@ class SettingsScreen extends ConsumerWidget {
                     _SettingsTile(
                       icon: Icons.dark_mode_outlined,
                       title: '테마 설정',
-                      trailing: Switch.adaptive(
-                        value: false, // Always Light for now
-                        onChanged:
-                            (val) {}, // No-op as requested Stitch Light only
-                        activeTrackColor: AppColors.stitchPrimary,
-                      ),
-                    ),
-                    const Divider(height: 1, indent: 60),
-                    const _SettingsTile(
-                      icon: Icons.notifications_none_rounded,
-                      title: '알림 설정',
-                      trailing: Icon(
-                        Icons.chevron_right_rounded,
-                        color: AppColors.stitchTextDim,
-                      ),
-                    ),
-                    const Divider(height: 1, indent: 60),
-                    const _SettingsTile(
-                      icon: Icons.language,
-                      title: '언어 선택',
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            '한국어',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.stitchTextSecondary,
+                          // 3-Way Selector Simulation (Segmented Control style)
+                          Container(
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.stitchBackground,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              children: [
+                                _ThemeIcon(
+                                  icon: Icons.light_mode,
+                                  isSelected: true,
+                                ),
+                                _ThemeIcon(
+                                  icon: Icons.dark_mode,
+                                  isSelected: false,
+                                ),
+                                _ThemeIcon(
+                                  icon: Icons.brightness_auto,
+                                  isSelected: false,
+                                ),
+                              ],
                             ),
                           ),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: AppColors.stitchTextDim,
-                          ),
                         ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-          // Settings Group 2
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Column(
-                  children: [
-                    _SettingsTile(
-                      icon: Icons.help_outline_rounded,
-                      title: '고객 지원',
-                      trailing: Icon(
-                        Icons.chevron_right_rounded,
-                        color: AppColors.stitchTextDim,
-                      ),
-                    ),
-                    Divider(height: 1, indent: 60),
-                    _SettingsTile(
-                      icon: Icons.description_outlined,
-                      title: '서비스 이용약관',
-                      trailing: Icon(
-                        Icons.chevron_right_rounded,
-                        color: AppColors.stitchTextDim,
                       ),
                     ),
                   ],
@@ -332,6 +282,42 @@ class _SettingsTile extends StatelessWidget {
           ),
           if (trailing != null) trailing!,
         ],
+      ),
+    );
+  }
+}
+
+class _ThemeIcon extends StatelessWidget {
+  final IconData icon;
+  final bool isSelected;
+
+  const _ThemeIcon({required this.icon, required this.isSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: isSelected
+              ? AppColors.stitchTextPrimary
+              : AppColors.stitchTextDim,
+        ),
       ),
     );
   }

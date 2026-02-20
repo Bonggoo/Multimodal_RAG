@@ -4,12 +4,18 @@ import '../provider/document_provider.dart';
 import '../../../core/constants/app_theme_constants.dart';
 import '../../../core/models/app_models.dart';
 
+// ... imports
+import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
+import '../../../../core/network/api_client.dart'; // for dioProvider
+
 class DocumentListView extends ConsumerWidget {
   const DocumentListView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final docsAsync = ref.watch(documentListProvider);
+    final selectedDoc = ref.watch(selectedDocumentProvider);
 
     return Scaffold(
       backgroundColor: AppColors.stitchBackground,
@@ -63,9 +69,47 @@ class DocumentListView extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: _UploadButton(
-                onTap: () {
-                  // Upload Logic Trigger (Maybe via modal or file picker)
-                  // For now, assume SideMenu handles it or add logic here
+                onTap: () async {
+                  // File Picker Logic
+                  try {
+                    final result = await FilePicker.platform.pickFiles(
+                      type: FileType.custom,
+                      allowedExtensions: ['pdf'],
+                      withData: true, // Needed for web/some platforms
+                    );
+
+                    if (result != null && result.files.single.path != null) {
+                      final file = result.files.single;
+                      if (!context.mounted) return;
+                      final scaffold = ScaffoldMessenger.of(context);
+
+                      scaffold.showSnackBar(
+                        SnackBar(content: Text('업로드 중: ${file.name}...')),
+                      );
+
+                      // Trigget Upload
+                      final dio = ref.read(dioProvider);
+                      final formData = FormData.fromMap({
+                        'file': await MultipartFile.fromFile(
+                          file.path!,
+                          filename: file.name,
+                        ),
+                      });
+
+                      await dio.post('/ingest', data: formData);
+
+                      ref.invalidate(documentListProvider); // Refresh List
+
+                      scaffold.showSnackBar(
+                        const SnackBar(content: Text('업로드 완료! 처리가 시작되었습니다.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('업로드 실패: $e')));
+                  }
                 },
               ),
             ),
@@ -89,19 +133,28 @@ class DocumentListView extends ConsumerWidget {
                 padding: const EdgeInsets.all(24),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, // 2 Column Grid like HTML
+                    crossAxisCount: 2,
                     mainAxisSpacing: 16,
                     crossAxisSpacing: 16,
-                    childAspectRatio: 1.6, // Aspect Ratio for Card
+                    childAspectRatio: 1.5,
                   ),
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final doc = docs[index];
-                    // First doc active simulation
-                    final isActive = index == 0;
+                    final isActive = selectedDoc == doc.filename;
 
                     return DocumentCard(
                       doc: doc,
                       isActive: isActive,
+                      onToggle: () {
+                        final notifier = ref.read(
+                          selectedDocumentProvider.notifier,
+                        );
+                        if (selectedDoc == doc.filename) {
+                          notifier.state = null;
+                        } else {
+                          notifier.state = doc.filename;
+                        }
+                      },
                       onDelete: () => ref
                           .read(documentListProvider.notifier)
                           .deleteDocument(doc.filename),
@@ -117,11 +170,11 @@ class DocumentListView extends ConsumerWidget {
                 ),
               ),
             ),
-            error: (err, stack) => SliverFillRemaining(
+            error: (err, stack) => const SliverFillRemaining(
               child: Center(
                 child: Text(
-                  'Error loading docs: $err',
-                  style: const TextStyle(color: Colors.red),
+                  'Error loading docs',
+                  style: TextStyle(color: Colors.red),
                 ),
               ),
             ),
@@ -148,10 +201,7 @@ class _UploadButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: AppColors.stitchBorderSoft,
-            style: BorderStyle
-                .none, // Dotted border difficult in standard Flutter without package, using custom painter or dashed decoration
-            // For simplicity, using solid light border or customized DottedBorder package if available.
-            // Let's use standard border for now, maybe Dashed later.
+            style: BorderStyle.solid,
           ),
           boxShadow: [
             BoxShadow(
@@ -161,7 +211,6 @@ class _UploadButton extends StatelessWidget {
             ),
           ],
         ),
-        // Dashed border simulation with custom painter can be added here
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -211,12 +260,14 @@ class DocumentCard extends StatelessWidget {
   final DocumentModel doc;
   final bool isActive;
   final VoidCallback onDelete;
+  final VoidCallback onToggle;
 
   const DocumentCard({
     super.key,
     required this.doc,
     required this.isActive,
     required this.onDelete,
+    required this.onToggle,
   });
 
   @override
