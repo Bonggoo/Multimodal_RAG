@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/providers/global_providers.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'core/theme/spectral_omega_theme.dart';
 import 'features/chat/ui/chat_screen.dart';
@@ -11,9 +12,6 @@ import 'features/settings/ui/settings_screen.dart';
 void main() {
   runApp(const ProviderScope(child: SpectralOmegaApp()));
 }
-
-// Global State for Navigation
-final navigationIndexProvider = StateProvider<int>((ref) => 0);
 
 class SpectralOmegaApp extends StatelessWidget {
   const SpectralOmegaApp({super.key});
@@ -61,6 +59,7 @@ class MainLayout extends ConsumerWidget {
         children: [
           // Main Content Area
           Positioned.fill(
+            bottom: 80, // Reserve space for the dock
             child: IndexedStack(
               index: navIndex,
               children: const [
@@ -73,26 +72,25 @@ class MainLayout extends ConsumerWidget {
 
           // Bottom Navigation Bar (Docked)
           Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
+            bottom: 20,
+            left: 24,
+            right: 24,
             child: Container(
-              padding: const EdgeInsets.only(top: 12, bottom: 24),
+              height: 64, // Compact height
               decoration: BoxDecoration(
                 color: Colors.white,
+                borderRadius: BorderRadius.circular(32), // Pill shape
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
                   ),
                 ],
-                border: const Border(
-                  top: BorderSide(color: AppColors.stitchBorderSoft),
-                ),
+                border: Border.all(color: AppColors.stitchBorderSoft),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _NavIcon(
                     icon: Icons.chat_bubble_outline_rounded,
@@ -101,7 +99,6 @@ class MainLayout extends ConsumerWidget {
                     onTap: () =>
                         ref.read(navigationIndexProvider.notifier).state = 0,
                   ),
-                  const SizedBox(width: 48), // Increased spacing
                   _NavIcon(
                     icon: Icons.book_outlined,
                     label: '라이브러리',
@@ -109,7 +106,6 @@ class MainLayout extends ConsumerWidget {
                     onTap: () =>
                         ref.read(navigationIndexProvider.notifier).state = 1,
                   ),
-                  const SizedBox(width: 48), // Increased spacing
                   _NavIcon(
                     icon: Icons.settings_outlined,
                     label: '설정',
