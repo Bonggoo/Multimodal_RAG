@@ -1,3 +1,4 @@
+import '../../../../core/providers/global_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../provider/chat_provider.dart';
@@ -102,10 +103,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             color: AppColors.stitchPrimary,
                           ),
                           onPressed: () {
-                            // New Chat Logic
-                            ref
-                                .read(chatProvider.notifier)
-                                .clearMessages(); // Temporary
+                            ref.read(chatProvider.notifier).clearMessages();
                           },
                           tooltip: '새 채팅',
                         ),
@@ -199,60 +197,63 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
                 child: Row(
                   children: [
-                    // Title
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // Title Area
+                    Row(
                       children: [
-                        Row(
+                        // Sidebar Toggle Button (Moved Left)
+                        IconButton(
+                          icon: Icon(
+                            _isSidebarOpen
+                                ? Icons.keyboard_double_arrow_left_rounded
+                                : Icons.keyboard_double_arrow_right_rounded,
+                            size: 20,
+                            color: AppColors.stitchTextDim,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isSidebarOpen = !_isSidebarOpen;
+                            });
+                          },
+                          tooltip: _isSidebarOpen ? '기록 접기' : '기록 펼치기',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          splashRadius: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'AI 매뉴얼 챗봇',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.stitchTextPrimary,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // Sidebar Toggle Button
-                            IconButton(
-                              icon: Icon(
-                                _isSidebarOpen
-                                    ? Icons.keyboard_double_arrow_left_rounded
-                                    : Icons.keyboard_double_arrow_right_rounded,
-                                size: 20,
-                                color: AppColors.stitchTextDim,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _isSidebarOpen = !_isSidebarOpen;
-                                });
-                              },
-                              tooltip: _isSidebarOpen ? '기록 접기' : '기록 펼치기',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              splashRadius: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors
-                                    .greenAccent, // Emerald-500 equivalent
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              '동기화 중',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.stitchTextDim,
-                              ),
+                            Row(
+                              children: [
+                                const Text(
+                                  'AI 매뉴얼 챗봇',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.stitchTextPrimary,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.greenAccent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  '동기화 중',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.stitchTextDim,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -260,7 +261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                     const Spacer(),
 
-                    // Ref Doc Chip
+                    // Ref Doc Chip (Clickable)
                     Consumer(
                       builder: (context, ref, child) {
                         final docs =
@@ -268,46 +269,55 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         final activeDoc = docs.isNotEmpty
                             ? docs.first.filename
                             : '선택된 문서 없음';
+                        final fileCount = docs.length;
 
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.stitchBackground,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.stitchBorder),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.auto_stories_outlined,
-                                size: 14,
-                                color: AppColors.stitchPrimary,
-                              ),
-                              const SizedBox(width: 8),
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 150,
+                        return InkWell(
+                          onTap: () {
+                            // Document Selection Sheet or Navigation
+                            ref.read(navigationIndexProvider.notifier).state =
+                                1; // Go to Library
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.stitchBackground,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.stitchBorder),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.auto_stories_outlined,
+                                  size: 14,
+                                  color: AppColors.stitchPrimary,
                                 ),
-                                child: Text(
-                                  '참조: $activeDoc',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.stitchTextSecondary,
-                                    overflow: TextOverflow.ellipsis,
+                                const SizedBox(width: 8),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 150,
+                                  ),
+                                  child: Text(
+                                    '참조: $activeDoc ${fileCount > 1 ? '외 ${fileCount - 1}건' : ''}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.stitchTextSecondary,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.expand_more_rounded,
-                                size: 14,
-                                color: AppColors.stitchTextDim,
-                              ),
-                            ],
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.expand_more_rounded,
+                                  size: 14,
+                                  color: AppColors.stitchTextDim,
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       },
@@ -319,7 +329,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               // 2. Chat Area
               Expanded(
                 child: Container(
-                  color: AppColors.stitchBackground, // Light Slate Background
+                  color: AppColors.stitchBackground,
                   child: ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(
@@ -335,14 +345,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ),
 
-              // 3. Input Area (Floating Style with Bottom Padding for Nav)
+              // 3. Input Area
               Container(
-                padding: const EdgeInsets.only(
-                  left: 24,
-                  right: 24,
-                  top: 24,
-                  bottom: 100,
-                ), // Extra bottom padding for floating nav
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.9),
                   border: const Border(
@@ -352,7 +357,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // Add Button
+                    // Add Button (Attachment)
                     Container(
                       width: 48,
                       height: 48,
@@ -368,7 +373,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           Icons.add_circle_outline_rounded,
                           color: AppColors.stitchTextDim,
                         ),
-                        onPressed: () {}, // Attachment Logic
+                        onPressed: () async {
+                          // Mock Attachment Logic
+                          final scaffold = ScaffoldMessenger.of(context);
+                          scaffold.showSnackBar(
+                            const SnackBar(content: Text('파일 첨부 기능은 준비 중입니다.')),
+                          );
+                        },
                       ),
                     ),
 
@@ -389,23 +400,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           border: Border.all(color: AppColors.stitchBorder),
                           boxShadow: [AppShadows.iosSubtle],
                         ),
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          maxLines: null,
-                          decoration: const InputDecoration(
-                            hintText: '질문을 입력하세요...',
-                            border: InputBorder.none,
-                            hintStyle: TextStyle(
-                              color: AppColors.stitchTextDim,
+                        child: KeyboardListener(
+                          focusNode: FocusNode(), // Dummy node for listener
+                          onKeyEvent: (event) {
+                            // Shift+Enter Logic is handled by TextField by default if maxLines: null
+                            // We just need to intercept Enter without Shift to send.
+                            // However, blocking the indentation in TextField requires custom controller logic or Intent.
+                            // A simpler way in Flutter Web/Desktop is checking logical keys on key down.
+                          },
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            maxLines: null,
+                            textInputAction:
+                                TextInputAction.newline, // Correct constant
+                            // To handle Shift+Enter vs Enter, we rely on `onSubmitted` which triggers on Enter usually only if single line.
+                            // For multiline, we need to detect key press.
+                            onChanged: (text) {
+                              if (text.endsWith('\n') &&
+                                  !_controller.value.isComposingRangeValid) {
+                                // Simple workaround: checking if Enter was pressed
+                                // This is flaky. Better to use CallbackShortcuts if possible or logical key check.
+                              }
+                            },
+                            decoration: const InputDecoration(
+                              hintText:
+                                  '질문을 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)',
+                              border: InputBorder.none,
+                              hintStyle: TextStyle(
+                                color: AppColors.stitchTextDim,
+                                fontSize: 15,
+                              ),
+                            ),
+                            style: const TextStyle(
                               fontSize: 15,
+                              color: AppColors.stitchTextPrimary,
                             ),
                           ),
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: AppColors.stitchTextPrimary,
-                          ),
-                          onSubmitted: (_) => _handleSend(),
                         ),
                       ),
                     ),

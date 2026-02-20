@@ -1,14 +1,18 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/models/app_models.dart';
 import '../../../core/auth/auth_provider.dart';
 
-part 'document_provider.g.dart';
+// Manual Provider Definition
+final documentListProvider =
+    AsyncNotifierProvider<DocumentList, List<DocumentModel>>(DocumentList.new);
 
-@riverpod
-class DocumentList extends _$DocumentList {
+// Simple StateProvider for selected document
+final selectedDocumentProvider = StateProvider<String?>((ref) => null);
+
+class DocumentList extends AsyncNotifier<List<DocumentModel>> {
   @override
-  FutureOr<List<DocumentModel>> build() async {
+  Future<List<DocumentModel>> build() async {
     // 인증 상태를 감시하여 로그인되지 않은 경우 빈 리스트 반환
     final authState = ref.watch(authNotifierProvider);
     if (authState.user == null) {
@@ -28,7 +32,6 @@ class DocumentList extends _$DocumentList {
       return [];
     }
   }
-  // ... rest of the functions
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();
@@ -38,6 +41,6 @@ class DocumentList extends _$DocumentList {
   Future<void> deleteDocument(String docName) async {
     final dio = ref.read(dioProvider);
     await dio.delete('/documents/$docName');
-    await refresh();
+    ref.invalidateSelf(); // Refresh list
   }
 }
