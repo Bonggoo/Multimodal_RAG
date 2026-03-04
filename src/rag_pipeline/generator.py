@@ -138,7 +138,7 @@ def get_rag_chain(retriever: BaseRetriever) -> Any: # Returns a Runnable object
     )
     return rag_chain
 
-def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expander: QueryExpander, filters: QAFilters = None, history: List[Dict[str, str]] = None, user_profile: UserProfile = None) -> Dict[str, Any]:
+def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expander: QueryExpander, uid: str = "default", filters: QAFilters = None, history: List[Dict[str, str]] = None, user_profile: UserProfile = None) -> Dict[str, Any]:
     """
     RAG 체인을 사용하여 사용자 질문에 답변을 생성하고,
     답변에 실제 인용된 이미지 경로만 추출하여 반환합니다.
@@ -161,40 +161,37 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
     codes = re.findall(r'[A-Z]\d{3,4}', query.upper())
     refined_query = " ".join(codes) if codes else query
     
-    vector_store = get_vector_store()
+    vector_store = get_vector_store(uid=uid)
     
-    # 3. 스마트 라우팅: 페이지 번호 추출 및 필터 구성
+    # 3. 검색 필터 정보 추출 (is_active, doc_name, page)
+    # 성능과 유연성을 위해 검색 결과 획득 후 메모리에서 필터링합니다.
     page_filter = extract_page_number(query)
     
-    search_filter = {}
-    if filters and filters.doc_name:
-        search_filter["doc_name"] = filters.doc_name
+    # 4. 하이브리드 검색 수행 (EnsembleRetriever 활용)
+    # 성능과 품질을 위해 이미 생성된 리트리버를 사용하고, 결과에서 필터링을 적용합니다.
+    docs_orig_raw = retriever.invoke(refined_query)
+    docs_exp_raw = retriever.invoke(expanded_query)
+    docs_raw_raw = retriever.invoke(refined_query) if refined_query != query else []
     
-    if page_filter:
-        print(f"Smart Routing: Detected page filter {page_filter}")
-        # ChromaDB $and 조건 구성 (문서명 필터가 있는 경우)
-        if "doc_name" in search_filter:
-            search_filter = {"$and": [
-                {"doc_name": {"$eq": search_filter["doc_name"]}},
-                {"page": {"$eq": page_filter}}
-            ]}
-        else:
-            search_filter = {"page": {"$eq": page_filter}}
-    
-    # 4. 필터가 적용된 검색 수행
-    if search_filter:
-        print(f"Applying search filters: {search_filter}")
-        # 필터가 걸린 경우 k를 조절하거나 해당 페이지의 모든 청크를 가져오도록 함
-        filtered_retriever = vector_store.as_retriever(
-            search_kwargs={'filter': search_filter, 'k': 50 if page_filter else 100}
-        )
-        docs_orig = filtered_retriever.invoke(refined_query)
-        docs_exp = filtered_retriever.invoke(expanded_query)
-        docs_raw = filtered_retriever.invoke(refined_query) if refined_query != query else []
-    else:
-        docs_orig = retriever.invoke(refined_query)
-        docs_exp = retriever.invoke(expanded_query)
-        docs_raw = retriever.invoke(refined_query) if refined_query != query else []
+    # 5. 메모리 내 필터링 (is_active, doc_name, page)
+    def apply_memory_filters(doc_list):
+        filtered = []
+        for doc in doc_list:
+            # 비활성화된 문서 필터링
+            if doc.metadata.get("is_active") == False:
+                continue
+            # 특정 문서 필터링 (있을 경우)
+            if filters and filters.doc_name and doc.metadata.get("doc_name") != filters.doc_name:
+                continue
+            # 페이지 필터링 (스마트 라우팅)
+            if page_filter and doc.metadata.get("page") != page_filter:
+                continue
+            filtered.append(doc)
+        return filtered
+
+    docs_orig = apply_memory_filters(docs_orig_raw)
+    docs_exp = apply_memory_filters(docs_exp_raw)
+    docs_raw = apply_memory_filters(docs_raw_raw)
     
     # 모든 결과 병합 및 중복 제거
     all_docs = docs_orig + docs_exp + docs_raw
@@ -334,7 +331,7 @@ def generate_answer_with_rag(query: str, retriever: BaseRetriever, query_expande
         "expanded_query": expanded_query
     }
 
-async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetriever, query_expander: QueryExpander, filters: QAFilters = None, history: List[Dict[str, str]] = None, user_profile: UserProfile = None) -> AsyncIterator[Dict[str, Any]]:
+async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetriever, query_expander: QueryExpander, uid: str = "default", filters: QAFilters = None, history: List[Dict[str, str]] = None, user_profile: UserProfile = None) -> AsyncIterator[Dict[str, Any]]:
     """
     RAG 체인을 사용하여 사용자 질문에 대한 답변을 스트리밍하고,
     마지막에 인용된 이미지 경로를 반환합니다. (성능 로깅 포함)
@@ -359,37 +356,34 @@ async def generate_answer_with_rag_streaming(query: str, retriever: BaseRetrieve
     codes = re.findall(r'[A-Z]\d{3,4}', query.upper())
     refined_query = " ".join(codes) if codes else query
 
-    vector_store = get_vector_store()
+    vector_store = get_vector_store(uid=uid)
 
-    # 스마트 라우팅: 페이지 번호 추출 및 필터 구성
+    # 3. 검색 필터 정보 추출 (is_active, doc_name, page)
+    # 성능과 유연성을 위해 검색 결과 획득 후 메모리에서 필터링합니다.
     page_filter = extract_page_number(query)
     
-    search_filter = {}
-    if filters and filters.doc_name:
-        search_filter["doc_name"] = filters.doc_name
+    # 2. 하이브리드 검색 수행 (EnsembleRetriever 활용)
+    docs_orig_raw = retriever.invoke(refined_query)
+    docs_exp_raw = retriever.invoke(expanded_query)
+    docs_raw_raw = retriever.invoke(refined_query) if refined_query != query else []
     
-    if page_filter:
-        print(f"Smart Routing (Streaming): Detected page filter {page_filter}")
-        if "doc_name" in search_filter:
-            search_filter = {"$and": [
-                {"doc_name": {"$eq": search_filter["doc_name"]}},
-                {"page": {"$eq": page_filter}}
-            ]}
-        else:
-            search_filter = {"page": {"$eq": page_filter}}
+    # 3. 메모리 내 필터링 (is_active, doc_name, page)
+    def apply_memory_filters(doc_list):
+        filtered = []
+        for doc in doc_list:
+            if doc.metadata.get("is_active") == False:
+                continue
+            if filters and filters.doc_name and doc.metadata.get("doc_name") != filters.doc_name:
+                continue
+            if page_filter and doc.metadata.get("page") != page_filter:
+                continue
+            filtered.append(doc)
+        print(f"Memory Filter: {len(doc_list)} -> {len(filtered)} documents remaining")
+        return filtered
 
-    if search_filter:
-        print(f"Applying search filters (Streaming): {search_filter}")
-        filtered_retriever = vector_store.as_retriever(
-            search_kwargs={'filter': search_filter, 'k': 50 if page_filter else 100}
-        )
-        docs_orig = filtered_retriever.invoke(refined_query)
-        docs_exp = filtered_retriever.invoke(expanded_query)
-        docs_raw = filtered_retriever.invoke(refined_query) if refined_query != query else []
-    else:
-        docs_orig = retriever.invoke(refined_query)
-        docs_exp = retriever.invoke(expanded_query)
-        docs_raw = retriever.invoke(refined_query) if refined_query != query else []
+    docs_orig = apply_memory_filters(docs_orig_raw)
+    docs_exp = apply_memory_filters(docs_exp_raw)
+    docs_raw = apply_memory_filters(docs_raw_raw)
     
     # 결과 병합 및 중복 제거
     all_docs = docs_orig + docs_exp + docs_raw

@@ -1,7 +1,7 @@
-# 🧠 Multimodal RAG Chatbot (v2.0)
+# 🧠 Multimodal RAG Chatbot (v2.4)
 
 생산 설비 매뉴얼(PDF)을 위한 **멀티모달 RAG(Retrieval-Augmented Generation)** 시스템입니다.
-텍스트뿐만 아니라 **표(Table)**와 **이미지(Image)**까지 이해하며, **Gemini 2.5/3.0** 모델을 활용하여 전문가 수준의 답변을 제공합니다.
+텍스트뿐만 아니라 **표(Table)**와 **이미지(Image)**까지 이해하며, **Gemini 2.5 Flash Lite** 모델을 활용하여 전문가 수준의 답변을 제공합니다.
 
 ---
 
@@ -11,25 +11,30 @@
 *   **병렬 처리(Parallel Ingestion)**: `asyncio`와 `semaphore`를 사용하여 대용량 PDF를 기존 대비 **3.5배 빠르게** 처리합니다.
 *   **Gemini Vision 기반**: PDF의 표 구조와 다이어그램을 텍스트로 변환하여 벡터 DB에 인덱싱합니다.
 *   **JSON 캐싱 시스템**: 파싱 결과를 로컬에 JSON으로 저장하여, 동일 문서 재처리 시 **API 비용을 0원으로** 만듭니다.
-*   **문서 제목 및 중복 체크**: AI 기반 제목 자동 추출 및 기존 문서 중복 업로드 방지 로직을 지원합니다.
 
 ### 2. 정밀 검색 & 필터링 (Advanced Retrieval)
-*   **고급 청킹(Semantic Chunking)**: `RecursiveCharacterTextSplitter`를 사용하여 문맥 유지를 최적화했습니다.
-*   **메타데이터 필터링**: 특정 문서(`doc_name`)를 지정하여 검색 범위를 좁히고 환각(Hallucination)을 방지합니다.
-*   **로컬 임베딩**: `jhgan/ko-sroberta-multitask` 모델을 사용하여 한국어 검색 정확도를 극대화했습니다.
+*   **하이브리드 리트리버**: BM25(형태소 분석기 Okt 통합)와 시맨틱 검색을 결합하여 한국어 기술 용어 검색 정확도를 극대화했습니다.
+*   **스마트 라우팅**: 질문에서 페이지 번호를 자동으로 추출하여 검색 범위를 최적화합니다.
 
-### 3. 품질 보증 & 피드백 (QA & Feedback)
-*   **Ragas 평가**: Faithfulness, Answer Relevancy 등 정량적 지표로 RAG 성능을 지속적으로 모니터링합니다.
-*   **사용자 피드백 루프**: `trace_id`를 통해 답변에 대한 좋아요/싫어요 피드백을 수집하여 성능 데이터베이스를 구축합니다.
+### 3. 프리미엄 사용자 경험 (User Experience)
+*   **Flutter macOS 클라이언트**: 프리미엄 Glassmorphism 테마와 다이나믹 애니메이션이 적용된 네이티브 앱을 제공합니다.
+*   **상태 보존 네비게이션**: `StatefulShellRoute`를 통해 탭 전환 시에도 채팅 내용과 스크롤 위치가 유지됩니다.
+*   **구글 로그인 (OAuth 2.0)**: 안전하고 편리한 구글 인증 및 자동 로그인 기능을 지원합니다.
 
 ---
 
 ## 🛠 기술 스택 (Tech Stack)
-*   **LLM**: Google Gemini 2.5 Flash / Pro
-*   **Embedding**: HuggingFace (`ko-sroberta`)
+
+### Backend
+*   **LLM**: Google Gemini 2.5 Flash Lite
+*   **Orchestration**: LangChain, FastAPI
 *   **Vector DB**: ChromaDB (Persistent)
-*   **Framework**: FastAPI, LangChain, Typer
-*   **Tooling**: Poetry, Pytest, Ragas
+*   **Embedding**: Google Generative AI (`gemini-embedding-001`)
+
+### Frontend
+*   **Framework**: Flutter (macOS)
+*   **State Management**: Riverpod (Generator)
+*   **Navigation**: GoRouter (StatefulShellRoute)
 
 ---
 
@@ -41,44 +46,48 @@
 git clone <URL>
 cd Multimodal_RAG
 
-# 의존성 설치
+# 백엔드 의존성 설치
 poetry install
+
+# 프론트엔드 의존성 설치
+cd frontend
+flutter pub get
 ```
 
 ### 2. API 키 설정
 `.env` 파일을 생성하고 키를 입력하세요.
 ```ini
 GOOGLE_API_KEY=your_gemini_api_key
-BACKEND_API_KEY=your_backend_secret_key
-GEMINI_MODEL=gemini-2.5-flash-lite
-EMBEDDING_DEVICE=cpu  # or mps, cuda
+GCS_BUCKET_NAME=your_gcs_bucket
+GOOGLE_OAUTH_CLIENT_ID=your_google_client_id
 ```
 
 ### 3. 서버 실행
 ```bash
-# CLI 명령어 사용 (권장)
+# 백엔드 실행
 poetry run python main.py serve
 
-# 또는 Uvicorn 직접 실행 (데이터 디렉토리 제외를 위해 src 폴더만 리로드 설정)
-poetry run uvicorn src.api.main:app --reload --reload-dir src
+# 프론트엔드 실행 (다른 터미널)
+cd frontend
+flutter run -d macos
 ```
 
 ---
 
 ## 📚 문서 (Documentation)
 프로젝트 상세 문서는 다음 파일들을 참고하세요:
-*   **[API_GUIDE.md](API_GUIDE.md)**: API 엔드포인트 상세 명세 및 사용 예시.
-*   **[walkthrough.md](walkthrough.md)**: v2.0 업데이트 내역 및 성능 검증 보고서.
-*   **[SYSTEM_DESIGN.md](SYSTEM_DESIGN.md)**: 전체 시스템 아키텍처 다이어그램.
+*   **[API_GUIDE.md](docs/API_GUIDE.md)**: API 엔드포인트 상세 명세 및 인증 방법.
+*   **[SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md)**: 전체 시스템 및 프론트엔드 아키텍처.
+*   **[walkthrough.md](docs/walkthrough.md)**: 최신 업데이트 내역 보고서.
 
 ---
 
 ## 🧪 테스트 (Testing)
-전체 시스템 검증을 위해 `pytest`를 실행합니다.
 ```bash
-# 전체 테스트 실행
+# 백엔드 테스트
 poetry run python -m pytest tests/api/
 
-# Ragas 검증 실행 (비용 발생 주의)
-poetry run python tests/evaluation/run_eval.py
+# 프론트엔드 테스트 (준비 중)
+cd frontend
+flutter test
 ```

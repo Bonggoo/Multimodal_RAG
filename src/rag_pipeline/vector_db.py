@@ -70,6 +70,7 @@ def create_documents_from_page_content(page_content: PageContent, page_num: int,
         "keywords": ", ".join(page_content.keywords) if page_content.keywords else "",
         "summary": page_content.summary if page_content.summary else "",
         "title": document_title if document_title else "",
+        "is_active": True,
     }
 
     # 1. 텍스트 콘텐츠 추가 (Advanced Chunking 적용)

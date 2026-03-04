@@ -44,6 +44,10 @@ class JobStatusResponse(BaseModel):
 class DocumentInfo(BaseModel):
     filename: str
     title: Optional[str] = None
+    is_active: bool = True
+
+class ToggleDocumentRequest(BaseModel):
+    is_active: bool
 
 class DocumentListResponse(BaseModel):
     documents: List[DocumentInfo]

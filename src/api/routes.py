@@ -11,9 +11,10 @@ from fastapi.responses import JSONResponse
 from src.api.schemas import (
     QARequest, QAResponse, AsyncIngestResponse, JobStatusResponse, 
     DocumentListResponse, DeleteDocumentResponse, QAFilters, 
-    FeedbackRequest, UserProfile, SessionListResponse, SessionDetailResponse
+    FeedbackRequest, UserProfile, SessionListResponse, SessionDetailResponse,
+    ToggleDocumentRequest
 )
-from src.api.services import get_indexed_documents, delete_document
+from src.api.services import get_indexed_documents, delete_document, toggle_document_active_status
 from src.api.logs import log_qa_history, log_feedback, load_sessions_metadata, get_session_history, delete_session, update_session_metadata
 from src.api.auth import verify_google_token, get_current_user
 import asyncio
@@ -281,12 +282,16 @@ async def list_documents(current_user: dict = Depends(get_current_user)):
     """
     try:
         uid = current_user.get("sub")
-        # GCS 동기화 (기존 데이터 확인용)
-        try:
-            storage_manager.sync_db_from_gcs(uid)
-            # 세션 목록도 GCS에서 동기화
-            storage_manager.download_file(f"{uid}/sessions.json", f"data/{uid}/sessions.json")
-        except: pass
+        # 성능 최적화: 매번 GCS에서 전체 DB를 내려받지 않도록 수정.
+        # 로컬 DB가 아예 없는 경우에만 동기화를 시도하거나, 세션 내에서는 로컬을 신뢰하도록 함.
+        # (주의: 멀티 디바이스 환경에서는 주기적인 체크가 필요할 수 있음)
+        local_db_path = os.path.join(settings.CHROMA_DB_DIR, uid)
+        if not os.path.exists(local_db_path):
+            try:
+                storage_manager.sync_db_from_gcs(uid)
+                # 세션 목록도 동기화
+                storage_manager.download_file(f"{uid}/sessions.json", f"data/{uid}/sessions.json")
+            except: pass
 
         doc_names = get_indexed_documents(uid=uid)
         return DocumentListResponse(documents=doc_names)
@@ -309,6 +314,27 @@ async def delete_document_endpoint(request: Request, doc_name: str, current_user
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문서 삭제 중 오류 발생: {e}")
+
+@router.post("/documents/{doc_name}/toggle")
+async def toggle_document_endpoint(
+    doc_name: str, 
+    toggle_req: ToggleDocumentRequest, 
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    지정된 문서의 활성/비활성 상태를 토글합니다.
+    """
+    try:
+        uid = current_user.get("sub")
+        result = toggle_document_active_status(uid, doc_name, toggle_req.is_active)
+        # 중요: 상태 변경 후 GCS 백그라운드 동기화 (응답 속도 향상)
+        background_tasks.add_task(storage_manager.sync_db_to_gcs, uid)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"문서 상태 변경 중 오류 발생: {e}")
 
 @router.post("/feedback")
 async def receive_feedback(feedback: FeedbackRequest, current_user: dict = Depends(get_current_user)):
@@ -386,11 +412,11 @@ async def ask_question(request: Request, qa_request: QARequest, current_user: di
         if retriever is None or query_expander is None:
             raise HTTPException(status_code=503, detail="Retriever or Query Expander is not available.")
 
-        result = generate_answer_with_rag(qa_request.query, retriever, query_expander, qa_request.filters, qa_request.history, qa_request.user_profile)
+        result = generate_answer_with_rag(qa_request.query, retriever, query_expander, uid, qa_request.filters, qa_request.history, qa_request.user_profile)
         
         # 새 세션인 경우 제목 생성
         if is_new_session:
-            title = generate_session_title(qa_request.query)
+            title = generate_session_title(qa_request.query, result["answer"])
             update_session_metadata(uid, session_id, title=title)
 
         # Trace ID 생성 및 로그 기록 (UID & Session ID 포함)
@@ -464,7 +490,15 @@ async def websocket_qa(websocket: WebSocket, token: str = Query(None)):
                 user_profile = UserProfile(**user_profile_dict) if user_profile_dict else None
                 
                 final_answer = ""
-                async for chunk in generate_answer_with_rag_streaming(query, retriever, query_expander, filters, history, user_profile):
+                async for chunk in generate_answer_with_rag_streaming(
+                    query=query,
+                    retriever=retriever,
+                    query_expander=query_expander,
+                    uid=uid,
+                    filters=filters,
+                    history=history,
+                    user_profile=user_profile
+                ):
                     # 세션 ID를 메타데이터에 포함시켜 전송
                     if chunk["type"] == "metadata":
                         chunk["payload"]["session_id"] = session_id
