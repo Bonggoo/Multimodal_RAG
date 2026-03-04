@@ -14,12 +14,12 @@ class AuthRepository {
 
   Future<UserModel?> signIn() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn
-          .authenticate();
+      final googleUser = await _googleSignIn.authenticate();
+      // ignore: unnecessary_null_comparison, dead_code
       if (googleUser == null) return null;
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      // ignore: await_only_futures
+      final googleAuth = await googleUser.authentication;
 
       return UserModel(
         id: googleUser.id,
@@ -39,12 +39,12 @@ class AuthRepository {
 
   Future<UserModel?> attemptSilentLogin() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn
-          .attemptLightweightAuthentication();
+      final googleUser = await _googleSignIn.attemptLightweightAuthentication();
+      // ignore: unnecessary_null_comparison, dead_code
       if (googleUser == null) return null;
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      // ignore: await_only_futures
+      final googleAuth = await googleUser.authentication;
 
       return UserModel(
         id: googleUser.id,

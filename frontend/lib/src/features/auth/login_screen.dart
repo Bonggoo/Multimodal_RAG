@@ -115,7 +115,7 @@ class LoginScreen extends ConsumerWidget {
   }
 
   Widget _buildWelcomeText(BuildContext context) {
-    return Column(
+    return const Column(
       children: [
         Text(
           'Multimodal RAG',
@@ -126,12 +126,12 @@ class LoginScreen extends ConsumerWidget {
             letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Text(
           '지능형 매뉴얼 챗봇 서비스',
           style: TextStyle(
             fontSize: 16,
-            color: Colors.white.withValues(alpha: 0.6),
+            color: Colors.white,
             letterSpacing: 0.5,
           ),
         ),

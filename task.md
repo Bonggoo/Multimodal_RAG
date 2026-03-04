@@ -41,9 +41,9 @@
     - [x] 업로드 중복 호출 버그 수정 및 에러 처리 개선
     - [x] 메인 네비게이션 및 채팅 화면 구현
     - [x] 라이브러리 및 설정 화면 구현
-- [x] **코드 품질 개선 (Lint 에러 수정)**
-    - [x] Deprecated API 교체 (`withOpacity` -> `withValues` 등)
-    - [x] Const 생성자 적용 및 미사용 임포트 제거
+- [x] **코드 품질 개선 (Lint 에러 수정)** [x]
+    - [x] IDE 보고 린트 에러 전면 수정 (JsonKey, async/await, const 등)
+    - [x] `flutter analyze` 0 issue 달성
 - [x] **데이터 초기화 및 버그 수정**
     - [x] 채팅/라이브러리/설정 화면 Mock 데이터 제거
     - [x] 채팅 화면 레이아웃 오버플로 수정
