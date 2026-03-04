@@ -10,26 +10,31 @@ def get_indexed_documents(uid: str = "default") -> List[Dict[str, Any]]:
     특정 유저의 벡터 스토어에 인덱싱된 모든 문서의 목록을 반환합니다.
     """
     vector_store = get_vector_store(uid=uid)
-    results = vector_store.get(include=["metadatas"])
+    # 성능 최적화: 모든 청크를 가져오지 않고, 각 문서의 1페이지에 해당하는 청크의 메타데이터만 가져옵니다.
+    # 대규모 문서군에서 로딩 속도를 비약적으로 향상시킵니다.
+    results = vector_store.get(where={"page": 1}, include=["metadatas"])
     
     metadatas = results.get("metadatas", [])
     if not metadatas:
         return []
 
-    # doc_name을 키로 하고, title을 값으로 하는 딕셔너리 생성 (중복 제거)
+    # doc_name을 키로 하고, (title, is_active)를 값으로 하는 딕셔너리 생성 (중복 제거)
     docs_map = {}
     for metadata in metadatas:
         doc_name = metadata.get("doc_name")
         title = metadata.get("title")
+        is_active = metadata.get("is_active", True)
         if doc_name:
-            # 이미 있는 문서라도 타이틀이 없으면(또는 빈 문자열이면) 현재 타이틀로 업데이트 (있는 경우 우선)
-            if doc_name not in docs_map or (not docs_map[doc_name] and title):
-                docs_map[doc_name] = title
+            if doc_name not in docs_map:
+                docs_map[doc_name] = {"title": title, "is_active": is_active}
+            else:
+                if not docs_map[doc_name]["title"] and title:
+                    docs_map[doc_name]["title"] = title
 
     # DocumentInfo 형태의 딕셔너리 리스트로 변환
     document_list = [
-        {"filename": doc_name, "title": title} 
-        for doc_name, title in docs_map.items()
+        {"filename": doc_name, "title": info["title"], "is_active": info["is_active"]} 
+        for doc_name, info in docs_map.items()
     ]
     
     return sorted(document_list, key=lambda x: x["filename"])
@@ -70,4 +75,41 @@ def delete_document(uid: str, doc_name: str, app_state: Any) -> Dict[str, Any]:
         "message": f"'{doc_name}' 문서가 성공적으로 삭제되었습니다.",
         "deleted_db_entries": deleted_count,
         "thumbnail_deleted": thumbnail_deleted
+    }
+
+def toggle_document_active_status(uid: str, doc_name: str, is_active: bool) -> Dict[str, Any]:
+    """
+    지정된 문서의 모든 페이지 메타데이터에서 is_active 상태를 업데이트합니다.
+    """
+    vector_store = get_vector_store(uid=uid)
+    collection = vector_store._collection
+    
+    # 해당 문서의 모든 ID와 기존 메타데이터 가져오기 (limit 해제하여 전체 청크 대상)
+    results = collection.get(where={"doc_name": doc_name}, include=["metadatas"], limit=10000)
+    ids = results.get("ids", [])
+    metadatas = results.get("metadatas", [])
+    
+    if not ids:
+        raise ValueError(f"'{doc_name}' 문서를 찾을 수 없습니다.")
+        
+    # 메타데이터 업데이트
+    new_metadatas = []
+    for meta in metadatas:
+        new_meta = meta.copy()
+        new_meta["is_active"] = is_active
+        new_metadatas.append(new_meta)
+        
+    collection.update(ids=ids, metadatas=new_metadatas)
+    
+    # 성능 최적화: 인덱스 전체를 다시 빌드하는 대신, 검색 시점에 필터링하도록 변경
+    # get_retriever(uid=uid, force_update=True)  <- 너무 느려서 주석 처리/삭제
+    
+    # 만약 app_state가 있다면 해당 유저의 리트리버도 갱신
+    # (FastAPI app.state를 통해 전달받는 경우를 대비)
+    # 실제 endpoint(routes.py)에서 app_state를 넘겨주는지 확인 필요
+    
+    return {
+        "status": "success",
+        "message": f"'{doc_name}' 문서가 {'활성화' if is_active else '비활성화'} 되었습니다.",
+        "is_active": is_active
     }

@@ -6,8 +6,11 @@
 `http://localhost:8000`
 
 ## 인증 (Authentication)
-모든 API 요청 헤더에 API 키를 포함해야 합니다.
-`X-API-Key: FASTAPI_SECRET_KEY`
+모든 API 요청 헤더에 Google OAuth2 **ID Token**을 Bearer 토큰으로 포함해야 합니다.
+`Authorization: Bearer <Google_ID_Token>`
+
+> [!NOTE]
+> 이전 개발용 더미 토큰(`12345`)은 보안을 위해 더 이상 권장되지 않으며, 실제 구글 로그인을 통해 생성된 토큰을 사용해야 정상적인 사용자 UID 매핑이 이루어집니다.
 
 ---
 
@@ -89,7 +92,7 @@ PDF 문서를 업로드하여 인덱싱합니다. (비동기 처리)
 ## 4. 스트리밍 질문 (WebSocket) ⚡️
 실시간으로 답변을 한 글자씩 받습니다.
 
-**URL:** `ws://localhost:8000/ws/qa?token=FASTAPI_SECRET_KEY`
+**URL:** `ws://localhost:8000/ws/qa?token=12345`
 
 **Message (Send):**
 ```json

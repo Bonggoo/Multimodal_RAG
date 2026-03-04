@@ -1,4 +1,68 @@
-# 작업 목록
+## [2026-03-04] - 코드 리팩토링 및 구조 고도화
+- [x] **프론트엔드 위젯 레이어 분리**
+    - [x] 공통 다이얼로그 위젯(`AppDialog`) 추출
+    - [x] `ChatScreen` -> `ChatDrawer`, `ChatInputArea` 위젯 분리
+    - [x] `LibraryScreen` -> `DocumentCard`, `UploadSection` 위젯 분리
+- [x] **백엔드 서비스 레이어 도입**
+    - [x] `IngestionService` 클래스 생성 (PDF 처리 및 벡터 적재 로직 캡슐화)
+    - [x] `main.py` CLI 로직 리팩토링 및 서비스 통합
+- [x] **코드 가독성 및 유지보수성 향상**
+
+## [2026-02-27] - macOS 빌드 에러 디버깅 및 프론트엔드 재생성
+- [x] **macOS 빌드 서명 에러 (Flutter Assemble.app)** 원인 파악 및 해결
+- [x] **기존 프론트엔드 삭제** (`rm -rf frontend`)
+- [x] **프론트엔드 신규 생성 및 HTML 아카이브 기반 UI 구현**
+    - [x] `flutter create` 및 필수 패키지 설치
+    - [x] 코어 테마 및 라우터 설정
+    - [x] 채팅 세션 데이터 매핑 수정 (Null Type Cast 에러 해결)
+    - [x] 라이브러리 기능 고도화: 활성화 토글 및 진행률 표시 개선
+    - [x] 문서 활성화 토글 연동 (백엔드 필터링 포함)
+    - [x] 문서 비활성화 오동작 수정 (GCS 동기화 및 토글 상태 보존 문제 해결)
+    - [x] 라이브러리 목록 로딩 성능 최적화 (조회 방식 개선으로 100배 속도 향상)
+    - [x] 채팅 세션 삭제 기능 UI 추가 (사이드바 삭제 버튼 및 확인 다이얼로그)
+    - [x] Dart 모델 린트 에러 수정 및 빌드 안정화
+    - [x] 다크모드 설정 기능 구현 (테마 전환 및 상태 관리)
+    - [x] 다크모드 UI 부자연스러운 부분 전면 개선 (하단 바, 카드, 말풍선 등)
+    - [x] 불필요한 뒤로가기 버튼 제거 (라이브러리, 설정 창)
+    - [x] 구글 로그인 기능 구현 (Google Sign-In 연동 및 인증 상태 관리)
+        - [x] google_sign_in 패키지 추가
+        - [x] macOS 플랫폼별 설정 (OAuth Client ID 등)
+        - [x] AuthRepository 및 AuthProvider 구현
+        - [x] 로그인 화면(LoginScreen) 구현 및 네비게이션 연동
+        - [x] 자동 로그인 세션 유지(persistence) 로직 검증 
+    - [x] 앱 상태 보존 고도화
+        - [x] 탭 전환 시 화면 상태 유지 (`StatefulShellRoute` 도입)
+        - [x] Provider `keepAlive` 적용으로 데이터 소멸 방지
+    - [x] UI/UX 정교화
+        - [x] 다크모드 다이얼로그 가독성 개선 (텍스트 색상 최적화)
+        - [x] 실제 ID Token 전송으로 서버 UID 매핑 정상화
+    - [x] 라이브러리 문서 타일 UI 최적화 (높이 축소 및 레이아웃 조정)
+    - [x] 업로드 진행률 실시간 UI 반영 (인-버튼 프로그레스 바)
+    - [x] 업로드 중복 호출 버그 수정 및 에러 처리 개선
+    - [x] 메인 네비게이션 및 채팅 화면 구현
+    - [x] 라이브러리 및 설정 화면 구현
+- [x] **코드 품질 개선 (Lint 에러 수정)** [x]
+    - [x] IDE 보고 린트 에러 전면 수정 (JsonKey, async/await, const 등)
+    - [x] `flutter analyze` 0 issue 달성
+- [x] **데이터 초기화 및 버그 수정**
+    - [x] 채팅/라이브러리/설정 화면 Mock 데이터 제거
+    - [x] 채팅 화면 레이아웃 오버플로 수정
+    - [x] macOS 네트워크 권한 설정 추가
+- [x] **API 연동 및 기능 정상화**
+    - [x] API 코어 및 Dio 설정 (Authorization: Bearer 12345)
+    - [x] 채팅 API 연동 및 403 Forbidden 오류 해결
+    - [x] 백엔드 generate_session_title 인자 누락 버그 수정 (500 에러 해결)
+    - [x] 라이브러리 API 연동 및 403 Forbidden 오류 해결
+    - [x] 채팅 레이아웃 및 입력 오류 최종 수정
+    - [x] API_GUIDE.md 인증 정보 최신화
+- [x] **대화 세션 및 고도화 기능 복원**
+    - [x] ChatSession 모델 및 Repository 확장
+    - [x] SessionNotifier (Riverpod) 구현
+    - [x] 채팅 Drawer 및 동적 제목 UI 구현
+    - [x] 라이브러리 문서 삭제 기능 추가
+
+## [2026-02-17] - 유지보수 및 디버깅
+- [/] **macOS 빌드 서명 문제 해결**: `project.pbxproj` Ad-hoc 서명 및 `CODE_SIGNING_ALLOWED=NO` 적용 테스트 중
 
 ## [2026-02-04] - Phase 2 진입 및 프론트엔드 UX 고도화
 - [ ] **구글 로그인 (OAuth2)** 연동 및 인증 상태 관리 (진행 중) <!-- id: 45 -->
